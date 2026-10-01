@@ -1,0 +1,14 @@
+$date today $end
+$version fixture $end
+$timescale 1 ns $end
+$scope module top $end
+$var wire 1 ! clock $end
+$var wire 4 " state [3:0] $end
+$upscope $end
+$enddefinitions $end
+#0
+0!
+b0001 "
+#5
+1!
+b10xZ "

@@ -1,0 +1,2425 @@
+{
+  "level": "Beginner",
+  "units": [
+    {
+      "level": "Beginner",
+      "id": "beginner-01",
+      "title": "Boolean Reasoning and Logic Gates",
+      "description": "Translate truth tables and Boolean expressions into simple, composable gate-level behavior.",
+      "content": "Digital logic represents information with two abstract values, 0 and 1. Real circuits map these values to voltage ranges, but Boolean algebra lets us reason about intended behavior without beginning with transistor physics. A truth table is the most direct specification for a small logic function: list every input combination and the required output. For n independent one-bit inputs there are 2^n rows, so tables are practical for a few inputs and useful as references for tests.\n\nThe basic operations are NOT, AND, and OR. NOT inverts one bit; AND is 1 only when every operand is 1; OR is 1 when at least one operand is 1. XOR is 1 when its inputs differ, and XNOR is 1 when they agree. NAND and NOR invert AND and OR. Operations compose: parentheses and operator precedence matter, so use parentheses to communicate intent. A two-input selector, for example, is (s AND d1) OR ((NOT s) AND d0). When s is 1 the first term passes d1; when s is 0 the second term passes d0.\n\nBoolean identities simplify logic without changing its truth table. De Morgan's laws state that NOT(A AND B) equals (NOT A) OR (NOT B), and NOT(A OR B) equals (NOT A) AND (NOT B). These transformations help match available gates or check an expression. In RTL, `&`, `|`, `^`, and `~` are bitwise operators; vector forms operate independently at each bit. Logical operators such as `&&` and `!` instead interpret operands as truth values, so choose deliberately. Four-state simulation also includes X and Z; these model unknown and high-impedance conditions, not additional Boolean answers. Start from a two-state truth table, then use simulation to expose unknowns and incomplete assumptions. A correct implementation has an explicit relationship between every input and output. Small truth tables also make exhaustive verification affordable and support code review: a reviewer can compare each row with the RTL rather than trusting an informal verbal description.",
+      "example": "module beginner01(input logic a,b,s, output logic y);\n  assign y = (s & b) | (~s & a);\nendmodule",
+      "keyPoints": [
+        "A truth table enumerates all 2^n combinations of n one-bit inputs.",
+        "AND requires all inputs to be 1; OR requires at least one; XOR detects differing bits.",
+        "Parentheses make compound Boolean intent and precedence explicit.",
+        "Bitwise operators act per bit; logical operators reduce operands to truth values.",
+        "X in simulation signals unknown or undriven behavior that deserves investigation."
+      ],
+      "test": {
+        "objective": "Exhaustively check the selector for all eight combinations of a, b, and s.",
+        "testbench": "module tb_beginner01;\n logic a,b,s,y; beginner01 dut(.a(a),.b(b),.s(s),.y(y));\n initial begin\n  for(int v=0;v<8;v++)begin {s,b,a}=v[2:0];#1;if(y!==(s?b:a))$fatal(1,\"mux mismatch %0d\",v);end\n  $display(\"beginner01 PASS\");$finish;\n end\nendmodule",
+        "integrationAssumptions": "Compile this testbench with beginner01; it drives every input combination and checks the selector after settling."
+      },
+      "questions": [
+        {
+          "question": "For a AND b, when is output 1?",
+          "options": [
+            "Only when both inputs are 1",
+            "When either input is 1",
+            "Only when inputs differ",
+            "Only when both are 0"
+          ],
+          "answer": 0,
+          "explanation": "AND is true only for pair (1,1)."
+        },
+        {
+          "question": "What does XOR produce for inputs 1 and 1?",
+          "options": [
+            "1",
+            "0",
+            "X in every simulator",
+            "It depends on input order"
+          ],
+          "answer": 1,
+          "explanation": "Equal known inputs cancel in XOR."
+        },
+        {
+          "question": "Which expression selects b when s is 1 and a when s is 0?",
+          "options": [
+            "(s AND a) OR (NOT s AND b)",
+            "(s OR b) AND (NOT s OR a)",
+            "(s AND b) OR (NOT s AND a)",
+            "(s XOR b) OR a"
+          ],
+          "answer": 2,
+          "explanation": "The s term enables b and its complement enables a."
+        },
+        {
+          "question": "How many truth-table rows are needed for four one-bit inputs?",
+          "options": [
+            "4",
+            "8",
+            "32",
+            "16"
+          ],
+          "answer": 3,
+          "explanation": "There are 2^4 possible combinations."
+        },
+        {
+          "question": "What is NOT(0) in two-state logic?",
+          "options": [
+            "1",
+            "0",
+            "2",
+            "Undefined"
+          ],
+          "answer": 0,
+          "explanation": "NOT reverses the Boolean value."
+        },
+        {
+          "question": "What best describes a NAND gate?",
+          "options": [
+            "An OR followed by XOR",
+            "Inversion of an AND result",
+            "An AND with one input removed",
+            "Always 1"
+          ],
+          "answer": 1,
+          "explanation": "NAND is NOT(AND), low only when all inputs are high."
+        },
+        {
+          "question": "By De Morgan's law, NOT(A OR B) equals what?",
+          "options": [
+            "(NOT A) OR (NOT B)",
+            "A AND B",
+            "(NOT A) AND (NOT B)",
+            "A XOR B"
+          ],
+          "answer": 2,
+          "explanation": "The complement of OR is the AND of complemented inputs."
+        },
+        {
+          "question": "For A=0 and B=1, what is A XOR B?",
+          "options": [
+            "0",
+            "X",
+            "Z",
+            "1"
+          ],
+          "answer": 3,
+          "explanation": "XOR is high when known operands differ."
+        },
+        {
+          "question": "Why add parentheses to a compound Boolean expression?",
+          "options": [
+            "To make grouping and precedence unambiguous",
+            "To force a clock edge",
+            "To turn a wire into a register",
+            "To remove unknown values"
+          ],
+          "answer": 0,
+          "explanation": "Explicit grouping preserves and communicates intent."
+        },
+        {
+          "question": "What does bitwise NOT do to a four-bit vector?",
+          "options": [
+            "Reverses bit order",
+            "Inverts each bit independently",
+            "Counts the ones",
+            "Inverts only the least significant bit"
+          ],
+          "answer": 1,
+          "explanation": "Bitwise complement acts at every vector position."
+        },
+        {
+          "question": "Which operator is logical AND in SystemVerilog?",
+          "options": [
+            "Single ampersand",
+            "Caret",
+            "Double ampersand",
+            "Tilde"
+          ],
+          "answer": 2,
+          "explanation": "Double ampersand is logical rather than per-bit conjunction."
+        },
+        {
+          "question": "When does a two-input XNOR evaluate to 1 for known inputs?",
+          "options": [
+            "When exactly one is 1",
+            "Only when both are 0",
+            "Whenever either is unknown",
+            "When inputs are equal"
+          ],
+          "answer": 3,
+          "explanation": "XNOR is high for 00 and 11."
+        },
+        {
+          "question": "What is the main purpose of a small truth table?",
+          "options": [
+            "Specify and inspect the complete Boolean function",
+            "Specify transistor sizes",
+            "Estimate clock frequency exactly",
+            "Declare vector widths"
+          ],
+          "answer": 0,
+          "explanation": "It states required outputs for every input pattern."
+        },
+        {
+          "question": "What does X usually indicate in four-state simulation?",
+          "options": [
+            "A third Boolean level in hardware",
+            "Unknown, conflicting, or not-yet-established value",
+            "Guaranteed logic high",
+            "Clock transition"
+          ],
+          "answer": 1,
+          "explanation": "X models uncertainty or contention, not another Boolean answer."
+        },
+        {
+          "question": "For known A, what does A OR 0 simplify to?",
+          "options": [
+            "0",
+            "NOT A",
+            "A",
+            "1"
+          ],
+          "answer": 2,
+          "explanation": "Zero is the identity element for OR."
+        },
+        {
+          "question": "What is A AND 0 for either known A?",
+          "options": [
+            "A",
+            "1",
+            "NOT A",
+            "0"
+          ],
+          "answer": 3,
+          "explanation": "Zero forces an AND output low."
+        },
+        {
+          "question": "A function is 1 only for input 00; which expression matches?",
+          "options": [
+            "(NOT A) AND (NOT B)",
+            "A OR B",
+            "A XOR B",
+            "A AND B"
+          ],
+          "answer": 0,
+          "explanation": "Both inputs must be zero, so AND their complements."
+        },
+        {
+          "question": "What does a 2-input multiplexer do?",
+          "options": [
+            "Adds its inputs",
+            "Passes one of two data inputs according to select",
+            "Stores data until reset",
+            "Compares inputs and raises an interrupt"
+          ],
+          "answer": 1,
+          "explanation": "A mux is a combinational selector controlled by s."
+        },
+        {
+          "question": "Why is exhaustive checking practical for a small gate function?",
+          "options": [
+            "It proves analog timing at every voltage",
+            "It removes the need for expected outputs",
+            "The finite input space has few combinations",
+            "It guarantees synthesis uses one gate"
+          ],
+          "answer": 2,
+          "explanation": "All combinations are inexpensive to enumerate for small n."
+        },
+        {
+          "question": "In bitwise AND of vectors, what is computed?",
+          "options": [
+            "The vectors are summed",
+            "Only their most significant bits are used",
+            "The vectors are compared for equality",
+            "AND at corresponding bit positions"
+          ],
+          "answer": 3,
+          "explanation": "Bitwise AND computes each output bit separately."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-02",
+      "title": "Number Systems, Widths, and Signed Values",
+      "description": "Represent values precisely in binary RTL and reason about width, overflow, and signed interpretation.",
+      "content": "Hardware stores bit patterns; decimal values are interpretations of those patterns. A binary vector of width W has 2^W possible patterns. Unsigned interpretation ranges from 0 through 2^W−1. Two's-complement signed interpretation uses the same patterns but assigns the most significant bit as a negative-weight sign bit, giving a range from −2^(W−1) through 2^(W−1)−1. Four-bit 1111 is 15 unsigned but −1 signed. The bits alone do not determine meaning; declarations, expression sizing, and casts establish it.\n\nWidths are functional design choices. An addition of two W-bit unsigned operands can require W+1 bits to preserve carry. If the result is assigned to only W bits, carry is discarded and arithmetic wraps modulo 2^W. Extend operands before the operation when the extra bit matters, as in `{1'b0,a} + {1'b0,b}`. Signed operands should be extended by replicating their sign bit, not by adding zero. Mixing signed and unsigned values can change comparisons and extension behavior; keep related operands at deliberate widths and signedness, and use explicit casts when conversion is intended. Sized literals such as `4'd9` make intent clearer than unsized values.\n\nHexadecimal is compact binary: one hex digit corresponds to four bits. Binary and hex are useful for masks and bit fields, while decimal is convenient for quantities. Fixed-point values also use integer bit patterns, but a design convention assigns some bits fractional weight; arithmetic does not automatically know the decimal point. For any arithmetic ask: what is operand width, what is signedness, how wide is the expression, and what should happen on overflow? Tests should include zero, maximum unsigned values, and signed extrema. Those cases reveal truncation or mistaken interpretation. Range calculations should precede declaration choices: a quantity needing values 0 through 100 requires at least seven unsigned bits, since six bits reach only 63. Choosing the minimum sufficient width saves resources, while margin should be justified by interface growth. Keep a bit-level calculation alongside decimal expectations when debugging arithmetic.",
+      "example": "module beginner02(input logic [3:0] a,b, output logic [4:0] sum);\n assign sum = {1'b0,a} + {1'b0,b};\nendmodule",
+      "keyPoints": [
+        "Unsigned W-bit values range 0 through 2^W−1.",
+        "Signed two’s-complement W-bit values range −2^(W−1) through 2^(W−1)−1.",
+        "Two unsigned W-bit operands need W+1 result bits to preserve carry.",
+        "Narrow assignment truncates high bits; unsigned overflow wraps modulo 2^W.",
+        "Extend operands deliberately and avoid accidental signed/unsigned mixing."
+      ],
+      "test": {
+        "objective": "Check the widened sum for all pairs of four-bit operands, including the maximum carry case.",
+        "testbench": "module tb_beginner02;\n logic [3:0] a,b;logic [4:0] sum;beginner02 dut(.a(a),.b(b),.sum(sum));\n initial begin for(int x=0;x<16;x++)for(int y=0;y<16;y++)begin a=x;b=y;#1;if(sum!==x+y)$fatal(1,\"sum mismatch %0d+%0d\",x,y);end $display(\"beginner02 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner02; inputs are unsigned and the test exhaustively checks the 5-bit carry-preserving sum."
+      },
+      "questions": [
+        {
+          "question": "What is the unsigned range of a 5-bit vector?",
+          "options": [
+            "0 to 31",
+            "−16 to 15",
+            "0 to 32",
+            "−31 to 31"
+          ],
+          "answer": 0,
+          "explanation": "Five unsigned bits encode 0 through 2^5−1."
+        },
+        {
+          "question": "What is the signed two's-complement range of 5 bits?",
+          "options": [
+            "−15 to 16",
+            "−16 to 15",
+            "0 to 31",
+            "−32 to 31"
+          ],
+          "answer": 1,
+          "explanation": "The range is −2^4 through 2^4−1."
+        },
+        {
+          "question": "How is 4-bit pattern 1111 interpreted unsigned?",
+          "options": [
+            "−1",
+            "7",
+            "15",
+            "16"
+          ],
+          "answer": 2,
+          "explanation": "Unsigned weights sum to fifteen."
+        },
+        {
+          "question": "How is 4-bit 1111 interpreted as signed two's complement?",
+          "options": [
+            "15",
+            "−7",
+            "−8",
+            "−1"
+          ],
+          "answer": 3,
+          "explanation": "That pattern represents minus one in two's complement."
+        },
+        {
+          "question": "What is the maximum sum of two unsigned 4-bit values?",
+          "options": [
+            "30",
+            "15",
+            "31",
+            "32"
+          ],
+          "answer": 0,
+          "explanation": "The maximum is 15+15=30."
+        },
+        {
+          "question": "How many bits preserve carry when adding two unsigned W-bit values?",
+          "options": [
+            "W",
+            "W+1",
+            "2W+1",
+            "W−1"
+          ],
+          "answer": 1,
+          "explanation": "Their sum can require one bit beyond the operands."
+        },
+        {
+          "question": "What happens when 4-bit unsigned 15 is incremented into 4 bits?",
+          "options": [
+            "It becomes 16",
+            "It becomes signed −1 without wrap",
+            "It wraps to 0",
+            "The register widens automatically"
+          ],
+          "answer": 2,
+          "explanation": "The fifth carry is discarded, leaving four zero bits."
+        },
+        {
+          "question": "Which concatenation zero-extends a 4-bit unsigned operand to 5 bits?",
+          "options": [
+            "A concatenated with trailing zero",
+            "Only the low three bits then zero",
+            "A leading one concatenated with a",
+            "A leading zero concatenated with a"
+          ],
+          "answer": 3,
+          "explanation": "A leading zero preserves the unsigned value."
+        },
+        {
+          "question": "How should a signed value be extended to a wider signed vector?",
+          "options": [
+            "Replicate the sign bit on the left",
+            "Always prepend zero",
+            "Append zeros on the right",
+            "Invert the sign bit"
+          ],
+          "answer": 0,
+          "explanation": "Sign extension repeats the MSB to preserve numeric value."
+        },
+        {
+          "question": "What does 4-bit 1000 represent as signed two's complement?",
+          "options": [
+            "8",
+            "−8",
+            "−7",
+            "0"
+          ],
+          "answer": 1,
+          "explanation": "The most negative 4-bit value is −2^3."
+        },
+        {
+          "question": "What is a risk of mixing signed and unsigned operands?",
+          "options": [
+            "Clock frequency must double",
+            "All bits become X",
+            "Comparison or extension may use unintended interpretation",
+            "Synthesis rejects every such expression"
+          ],
+          "answer": 2,
+          "explanation": "Conversions can change numeric comparison behavior."
+        },
+        {
+          "question": "How many binary bits does one hexadecimal digit represent?",
+          "options": [
+            "2",
+            "3",
+            "8",
+            "4"
+          ],
+          "answer": 3,
+          "explanation": "Each base-16 digit encodes four binary bits."
+        },
+        {
+          "question": "What is binary 1010 in hexadecimal?",
+          "options": [
+            "A",
+            "5",
+            "10",
+            "C"
+          ],
+          "answer": 0,
+          "explanation": "The nibble 1010 is hexadecimal A."
+        },
+        {
+          "question": "Which literal explicitly represents unsigned decimal 13 in 8 bits?",
+          "options": [
+            "13-bit binary 8",
+            "8-bit decimal 13",
+            "8-bit hexadecimal 13",
+            "13-bit signed decimal 8"
+          ],
+          "answer": 1,
+          "explanation": "Size, base, and value are explicit in the first form."
+        },
+        {
+          "question": "Why add a leading zero to both operands before addition?",
+          "options": [
+            "To make values signed negatives",
+            "To discard least significant bit",
+            "To retain possible carry in a 5-bit result",
+            "To force saturating arithmetic"
+          ],
+          "answer": 2,
+          "explanation": "Extended operands leave room for the carry."
+        },
+        {
+          "question": "What normally happens assigning 5 bits to a 4-bit destination?",
+          "options": [
+            "Value is rounded",
+            "Destination saturates at 15",
+            "A sign bit is automatically inserted",
+            "High-order bit(s) are discarded"
+          ],
+          "answer": 3,
+          "explanation": "Narrowing assignment truncates high bits."
+        },
+        {
+          "question": "What is unsigned 8-bit all-ones value?",
+          "options": [
+            "255",
+            "−1",
+            "127",
+            "16"
+          ],
+          "answer": 0,
+          "explanation": "Eight ones have unsigned value 2^8−1."
+        },
+        {
+          "question": "Which input pair best finds a lost carry in the example?",
+          "options": [
+            "0 and 0",
+            "15 and 15",
+            "1 and 1",
+            "2 and 3"
+          ],
+          "answer": 1,
+          "explanation": "Maximum operands force carry into bit four."
+        },
+        {
+          "question": "Does SystemVerilog automatically track a fixed-point decimal point?",
+          "options": [
+            "Yes, every packed vector is fixed point",
+            "Only for logic declarations",
+            "No, scaling is a design convention",
+            "Only after multiplication"
+          ],
+          "answer": 2,
+          "explanation": "Packed vectors store bits; fractional scaling is an external convention."
+        },
+        {
+          "question": "Why use sized literals in arithmetic RTL?",
+          "options": [
+            "They increase gate speed automatically",
+            "They prevent all overflow",
+            "They make a vector four-state",
+            "They make intended width and signedness explicit"
+          ],
+          "answer": 3,
+          "explanation": "Sizing reduces unexpected extension or truncation."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-03",
+      "title": "Combinational RTL and Selection Logic",
+      "description": "Describe complete combinational functions with continuous assignments and complete procedural blocks.",
+      "content": "Combinational logic has no memory: outputs are functions only of current inputs. A continuous assignment such as `assign y = ...;` naturally expresses simple combinational behavior. For alternatives, an `always_comb` block with `if` or `case` may be clearer. The key requirement is completeness: every output assigned procedurally must receive a value on every possible path. If a path omits an assignment, hardware must retain the previous value, implying a latch. Latches can be intentional, but an accidental latch usually means the specification or code is incomplete.\n\nA multiplexer selects one of several data inputs. A decoder activates an output based on an encoded input. A `case` statement is suitable for either if all relevant choices and a safe default are covered. In combinational `case`, assign defaults before branching, or ensure every branch assigns every output. `always_comb` communicates intent and adds checks beyond a generic procedural block, but does not excuse incomplete assignments. Avoid assigning one signal in multiple procedural processes; that creates ambiguous ownership and potentially conflicting drivers.\n\nBlocking assignments (`=`) are generally used in combinational procedural code because statements execute in order, allowing later expressions to use earlier temporary values. Nonblocking assignments (`<=`) are generally used in edge-triggered sequential logic. Hardware is inferred from behavior, and simulation scheduling affects what a testbench observes in a time step. A concise combinational block can assign a default then override selected cases. For a mux, verify every select encoding; for a decoder, check active and inactive outputs. Consider unknown select values: a default can avoid accidental propagation but must match intended safety policy. Good RTL is synthesizable and easy to audit against a truth table. Avoid combinational feedback loops, which may fail to settle or infer unsupported logic. Naming signals by role and keeping selection logic readable helps debugging and maintenance.",
+      "example": "module beginner03(input logic [1:0] sel,input logic [3:0] d0,d1,d2,d3,output logic [3:0] y);\n always_comb begin\n  y=4'b0000;\n  case(sel)\n   2'd0:y=d0; 2'd1:y=d1; 2'd2:y=d2; 2'd3:y=d3;\n   default:y=4'b0000;\n  endcase\n end\nendmodule",
+      "keyPoints": [
+        "Combinational outputs depend on present inputs, not stored history.",
+        "Every output needs an assignment on every path to avoid unintended latches.",
+        "Use always_comb for procedural combinational logic and case for selection.",
+        "A default assignment makes output behavior complete.",
+        "One procedural variable should have one clear owning process."
+      ],
+      "test": {
+        "objective": "Exercise all four select values and verify that the selected 4-bit input reaches y.",
+        "testbench": "module tb_beginner03;\n logic [1:0] sel;logic [3:0] d0,d1,d2,d3,y,e;beginner03 dut(.sel(sel),.d0(d0),.d1(d1),.d2(d2),.d3(d3),.y(y));\n initial begin d0=3;d1=6;d2=9;d3=12;for(int i=0;i<4;i++)begin sel=i;#1;case(i)0:e=d0;1:e=d1;2:e=d2;default:e=d3;endcase if(y!==e)$fatal(1,\"select %0d mismatch\",i);end $display(\"beginner03 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner03. Four distinct data patterns make selection errors observable; the test checks every legal selector."
+      },
+      "questions": [
+        {
+          "question": "What defines combinational logic?",
+          "options": [
+            "Outputs depend only on current inputs",
+            "Outputs change only after reset",
+            "It always contains a clock",
+            "Outputs depend on previous output"
+          ],
+          "answer": 0,
+          "explanation": "Combinational behavior has no stored history."
+        },
+        {
+          "question": "What commonly causes an unintended latch in RTL?",
+          "options": [
+            "A continuous assignment is used",
+            "An output is not assigned on every path",
+            "A case has every branch and default",
+            "An input is logic"
+          ],
+          "answer": 1,
+          "explanation": "Omitted assignment implies old value is retained."
+        },
+        {
+          "question": "Which construct best communicates combinational intent?",
+          "options": [
+            "always_ff",
+            "initial",
+            "always_comb",
+            "posedge block without sensitivity"
+          ],
+          "answer": 2,
+          "explanation": "always_comb denotes procedural combinational logic."
+        },
+        {
+          "question": "What is a safe output pattern in combinational case?",
+          "options": [
+            "Assign only in likely branch",
+            "Assign in two independent always blocks",
+            "Initialize once in initial",
+            "Give a default before overriding cases"
+          ],
+          "answer": 3,
+          "explanation": "A default defines output on all branches."
+        },
+        {
+          "question": "What does a 4-to-1 mux implement?",
+          "options": [
+            "Selects one of four data values using a selector",
+            "Adds four numbers",
+            "Stores four values on a clock",
+            "Decodes four inputs into segments"
+          ],
+          "answer": 0,
+          "explanation": "The selector chooses which input passes through."
+        },
+        {
+          "question": "Why include default in a case statement?",
+          "options": [
+            "Cause a clock edge",
+            "Define behavior for unmatched values",
+            "Infer reset automatically",
+            "Make branches execute serially"
+          ],
+          "answer": 1,
+          "explanation": "Default is a fallback for unlisted values."
+        },
+        {
+          "question": "Which assignment operator is usual in combinational procedural logic?",
+          "options": [
+            "Nonblocking in every circumstance",
+            "Continuous assign inside block",
+            "Blocking equals",
+            "Equality operator"
+          ],
+          "answer": 2,
+          "explanation": "Blocking assignments express ordered calculations."
+        },
+        {
+          "question": "What is implied if y is assigned in only one branch of an if?",
+          "options": [
+            "y is automatically zero",
+            "A flip-flop is always inferred",
+            "The code is ignored",
+            "y must hold old value in other cases"
+          ],
+          "answer": 3,
+          "explanation": "Retaining a value implies storage such as latch."
+        },
+        {
+          "question": "Why set y=0 before beginner03 case?",
+          "options": [
+            "It supplies fallback for unmatched selector",
+            "It resets y on clock",
+            "It makes y signed",
+            "It selects d0 always"
+          ],
+          "answer": 0,
+          "explanation": "The default prevents an unassigned combinational path."
+        },
+        {
+          "question": "What is y when sel is 2 in beginner03?",
+          "options": [
+            "d1",
+            "d2",
+            "Always zero",
+            "A stored state"
+          ],
+          "answer": 1,
+          "explanation": "The 2'd2 arm selects d2."
+        },
+        {
+          "question": "Why avoid driving one output from two procedural blocks?",
+          "options": [
+            "It makes output wider",
+            "It prevents synthesis",
+            "It creates multiple ownership and possible conflicts",
+            "It guarantees a latch"
+          ],
+          "answer": 2,
+          "explanation": "A signal needs one clear procedural driver."
+        },
+        {
+          "question": "Which case covers all 2-bit known selector values?",
+          "options": [
+            "Only 0 and 1",
+            "Only 0,2,3",
+            "Any two items without default",
+            "Items for 0,1,2,3"
+          ],
+          "answer": 3,
+          "explanation": "Two bits have four known binary encodings."
+        },
+        {
+          "question": "What does always_comb add over ordinary always?",
+          "options": [
+            "Intent declaration and additional tool checks",
+            "A clocked behavior",
+            "Automatic default values",
+            "Automatic nonblocking conversion"
+          ],
+          "answer": 0,
+          "explanation": "Tools can check combinational intent."
+        },
+        {
+          "question": "What is continuous assign best suited for?",
+          "options": [
+            "A reset sequence run once",
+            "A simple combinational expression",
+            "A clocked state update",
+            "A testbench delay loop"
+          ],
+          "answer": 1,
+          "explanation": "It directly expresses a combinational relation."
+        },
+        {
+          "question": "What should a mux test compare?",
+          "options": [
+            "Only whether output is nonzero",
+            "Only the first selector case",
+            "Full output against selected input for every selector",
+            "Whether design has clock"
+          ],
+          "answer": 2,
+          "explanation": "This checks the mux contract for each choice."
+        },
+        {
+          "question": "What does a decoder generally do?",
+          "options": [
+            "Passes one data input through",
+            "Adds signed integers",
+            "Stores prior selector",
+            "Maps encoded input to asserted outputs"
+          ],
+          "answer": 3,
+          "explanation": "A decoder expands an encoding into control lines."
+        },
+        {
+          "question": "What issue can an unknown selector create in simulation?",
+          "options": [
+            "Selection is uncertain and may take default behavior",
+            "It guarantees selector zero",
+            "It starts clock",
+            "It forces output to retain data"
+          ],
+          "answer": 0,
+          "explanation": "X controls expose uncertainty and exercise fallback policy."
+        },
+        {
+          "question": "Why use blocking assignment for a combinational temporary?",
+          "options": [
+            "It delays change until next clock",
+            "Later statements can use newly computed value",
+            "It declares a net",
+            "It prevents synthesis"
+          ],
+          "answer": 1,
+          "explanation": "Blocking updates immediately in procedural order."
+        },
+        {
+          "question": "What can incomplete sensitivity cause in legacy always code?",
+          "options": [
+            "A wider output",
+            "Automatic saturation",
+            "Simulation misses an input change",
+            "An extra port"
+          ],
+          "answer": 2,
+          "explanation": "A process must react to every combinational input."
+        },
+        {
+          "question": "Which choice most directly avoids accidental latches?",
+          "options": [
+            "Use more nested ifs",
+            "Use nonblocking for outputs",
+            "Declare outputs as wires",
+            "Assign every output on every path"
+          ],
+          "answer": 3,
+          "explanation": "Completeness removes need to retain old value."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-04",
+      "title": "Arithmetic Datapaths and Simple ALUs",
+      "description": "Build synthesizable arithmetic and logic datapaths with explicit widths, operation selection, and corner-case checks.",
+      "content": "A datapath transforms values; an arithmetic logic unit (ALU) selects among arithmetic and bitwise operations. Begin with a contract: operand widths, signedness, operation encodings, result width, and behavior for unsupported controls. These decisions prevent reliance on truncation or assumptions. In this example, two four-bit unsigned operands produce a five-bit addition result so carry is preserved. Subtraction uses an explicitly extended expression; a design might instead use a signed result or expose a borrow flag. State the choice and test it.\n\nA `case` maps operation codes to results. Assign a default before the case to define a combinational output for unsupported codes. The default is not a substitute for defining the external protocol: decide whether invalid codes produce zero, an error flag, or are excluded by an invariant. Bitwise AND and XOR preserve operand width; arithmetic may need extra bits. Mixing vectors and scalars requires care because expression sizing and signedness determine evaluation. Flags such as zero and carry need precise definitions. An unsigned carry-out is not the same as signed overflow.\n\nCombinational datapaths have no internal cycle latency; outputs settle after inputs and propagation. Larger datapaths may have long critical paths, so designers sometimes pipeline by inserting registers. That changes latency and requires control/data alignment; it is not merely syntax. First make behavior correct and explicit, then consider timing. Tests should exercise every operation, zero operands, maximum values, equal operands for subtraction, and invalid codes. Reference calculations should use enough bits to avoid repeating the implementation's truncation bug. Mathematical and bit-vector operations are related but not identical: modulo arithmetic, signed range, and result slicing determine actual hardware behavior. Good datapath design specifies both.",
+      "example": "module beginner04(input logic [3:0] a,b,input logic [1:0] op,output logic [4:0] result);\n always_comb begin result=5'd0;case(op)\n  2'd0:result={1'b0,a}+{1'b0,b}; 2'd1:result={1'b0,a}-{1'b0,b};\n  2'd2:result={1'b0,(a & b)}; 2'd3:result={1'b0,(a ^ b)};\n  default:result=5'd0;endcase end\nendmodule",
+      "keyPoints": [
+        "Define widths, signedness, result width, and operation encodings in the interface.",
+        "Addition may need a carry bit beyond operand width.",
+        "Unsigned carry and signed overflow are different conditions.",
+        "Use a complete case/default for combinational operation selection.",
+        "Pipelining improves timing at the cost of latency and control alignment."
+      ],
+      "test": {
+        "objective": "Check add, subtract, AND, and XOR at representative boundaries and confirm result encoding.",
+        "testbench": "module tb_beginner04;\n logic [3:0] a,b;logic [1:0] op;logic [4:0] result;beginner04 dut(.a(a),.b(b),.op(op),.result(result));\n task automatic check(input logic [4:0] e);#1;if(result!==e)$fatal(1,\"op=%0d a=%0d b=%0d got=%0d exp=%0d\",op,a,b,result,e);endtask\n initial begin a=15;b=1;op=0;check(16);a=9;b=3;op=1;check(6);a=10;b=12;op=2;check(8);a=10;b=12;op=3;check(6);$display(\"beginner04 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner04; op codes are 0=add, 1=subtract, 2=AND, 3=XOR, using unsigned inputs and 5-bit result."
+      },
+      "questions": [
+        {
+          "question": "Why is beginner04 addition result five bits wide?",
+          "options": [
+            "To preserve carry from two 4-bit operands",
+            "To make operands signed",
+            "To store operation code",
+            "To add clock state"
+          ],
+          "answer": 0,
+          "explanation": "Maximum sum 30 requires five bits."
+        },
+        {
+          "question": "What distinguishes unsigned carry and signed overflow?",
+          "options": [
+            "They are always identical",
+            "Carry is unsigned range exceedance; overflow is signed range exceedance",
+            "Carry is pulse and overflow reset",
+            "Overflow applies only to XOR"
+          ],
+          "answer": 1,
+          "explanation": "They describe different numerical interpretations."
+        },
+        {
+          "question": "What does op code 2 select?",
+          "options": [
+            "Unsigned addition",
+            "Subtraction",
+            "Bitwise AND",
+            "Bitwise XOR"
+          ],
+          "answer": 2,
+          "explanation": "The 2'd2 case assigns a AND b."
+        },
+        {
+          "question": "Why initialize result before case?",
+          "options": [
+            "To infer result register",
+            "To sign-extend every operand",
+            "To delay output one cycle",
+            "To define invalid or unmatched operation behavior"
+          ],
+          "answer": 3,
+          "explanation": "A default prevents an incomplete combinational path."
+        },
+        {
+          "question": "What width represents sum of two unsigned 4-bit values without loss?",
+          "options": [
+            "5 bits",
+            "4 bits",
+            "3 bits",
+            "8 bits mandatory"
+          ],
+          "answer": 0,
+          "explanation": "The maximum is 30, requiring five bits."
+        },
+        {
+          "question": "For a=3, b=5, op=0, what is result?",
+          "options": [
+            "2",
+            "8",
+            "15",
+            "0"
+          ],
+          "answer": 1,
+          "explanation": "The addition operation computes 3+5."
+        },
+        {
+          "question": "For unsigned 5-bit result, what is 3 minus 5?",
+          "options": [
+            "Negative two as signed",
+            "2",
+            "30",
+            "31"
+          ],
+          "answer": 2,
+          "explanation": "Modulo 32, subtraction yields 30 and result is unsigned."
+        },
+        {
+          "question": "Why might an ALU include invalid-operation error flag?",
+          "options": [
+            "To improve XOR truth table",
+            "To force pipelining",
+            "To change operand width",
+            "To make unsupported control codes observable"
+          ],
+          "answer": 3,
+          "explanation": "An error output exposes protocol violation rather than hiding it."
+        },
+        {
+          "question": "What is 1010 AND 1100?",
+          "options": [
+            "1000",
+            "0110",
+            "1110",
+            "0000"
+          ],
+          "answer": 0,
+          "explanation": "Only positions high in both operands survive."
+        },
+        {
+          "question": "What is 1010 XOR 1100?",
+          "options": [
+            "1000",
+            "0110",
+            "1110",
+            "1010"
+          ],
+          "answer": 1,
+          "explanation": "XOR is high where operands differ."
+        },
+        {
+          "question": "Which test detects a lost addition carry?",
+          "options": [
+            "Subtract zero from zero",
+            "AND zero with zero",
+            "Add maximum operand values",
+            "Test operands both one"
+          ],
+          "answer": 2,
+          "explanation": "Maximum values exercise widened carry."
+        },
+        {
+          "question": "Why should reference calculation have extra width?",
+          "options": [
+            "To make it signed automatically",
+            "To speed simulation",
+            "Testbenches cannot use integers",
+            "To avoid repeating DUT truncation bug"
+          ],
+          "answer": 3,
+          "explanation": "A wider independent result exposes truncation."
+        },
+        {
+          "question": "What does pipelining generally change?",
+          "options": [
+            "Latency and data/control alignment",
+            "Only truth table",
+            "Operand number base",
+            "Boolean operator meaning"
+          ],
+          "answer": 0,
+          "explanation": "Inserted registers cause results to emerge later."
+        },
+        {
+          "question": "What does a zero flag commonly indicate if defined as result equals zero?",
+          "options": [
+            "Adder generated carry",
+            "Result vector is all zeros",
+            "Operation code was zero",
+            "Clock is inactive"
+          ],
+          "answer": 1,
+          "explanation": "It is a predicate on the computed result."
+        },
+        {
+          "question": "Why specify signedness explicitly?",
+          "options": [
+            "It defines reset polarity",
+            "It prevents all truncation",
+            "It determines interpretation, extension, and comparison",
+            "It changes XOR to XNOR"
+          ],
+          "answer": 2,
+          "explanation": "Signedness impacts arithmetic and relational operations."
+        },
+        {
+          "question": "What can synthesis infer if output is omitted in a case arm?",
+          "options": [
+            "Larger carry bit",
+            "Mandatory clock divider",
+            "Second ALU",
+            "Storage such as a latch"
+          ],
+          "answer": 3,
+          "explanation": "Output must be retained for that branch."
+        },
+        {
+          "question": "Which sample operations zero-extend their four-bit result?",
+          "options": [
+            "AND and XOR",
+            "Addition only",
+            "Subtraction only",
+            "All preserve carry"
+          ],
+          "answer": 0,
+          "explanation": "Bitwise results are four bits and sample prepends zero."
+        },
+        {
+          "question": "What is op=0,a=15,b=1 result?",
+          "options": [
+            "0",
+            "16",
+            "15",
+            "31"
+          ],
+          "answer": 1,
+          "explanation": "The five-bit sum retains its carry."
+        },
+        {
+          "question": "Why test subtraction with equal operands?",
+          "options": [
+            "It guarantees unsigned borrow",
+            "It tests selector 3",
+            "It checks the zero-result boundary",
+            "It verifies only signed overflow"
+          ],
+          "answer": 2,
+          "explanation": "Equal operands subtract to zero."
+        },
+        {
+          "question": "What should be specified before coding an ALU?",
+          "options": [
+            "Only line count",
+            "Assume expression sizes are correct",
+            "Write clock first",
+            "Operations, encodings, widths, signedness, invalid-code behavior"
+          ],
+          "answer": 3,
+          "explanation": "An explicit contract removes arithmetic and control ambiguity."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-05",
+      "title": "Flip-Flops, Resets, and Enables",
+      "description": "Model state changes on clock edges using synthesizable sequential RTL and understand reset and enable behavior.",
+      "content": "Sequential logic stores information. A flip-flop samples its input at an active clock edge and holds the sampled value until another edge or reset event. In SystemVerilog an edge-triggered block is conventionally written with `always_ff`; use nonblocking assignments (`<=`) for state updates. Nonblocking assignments schedule updates together at the end of the time step, modeling registers sampling old values simultaneously. This avoids order-dependent behavior when several registers update on the same edge.\n\nA synchronous reset is examined only at the active edge. An asynchronous reset can affect state independently of the clock and appears in the event control, commonly `@(posedge clk or posedge rst)`. Reset polarity must be unambiguous in its name and logic. Reset establishes a known starting state; it should not be added mechanically to every data path. Some implementation flows prefer particular reset structures, and asynchronous reset deassertion near a clock edge can cause metastability unless release is synchronized. Choose reset style intentionally and test exact timing.\n\nAn enable holds state when inactive: no assignment in the sequential branch means the register retains its value. That retention is a flip-flop feature, not a combinational latch, because the process is edge-triggered. Consider reset priority relative to enable. The example prioritizes reset, then enable, then hold. A common bug is assigning new data in the wrong branch. Another is using blocking assignment for state and making simulation depend on process ordering. A synchronous testbench should drive inputs before sampling edge, wait for the edge and nonblocking update, then inspect outputs. Check both change and hold and verify reset assertion and release according to the interface.\n\nAn uninitialized register may appear X in simulation until reset or known assignment, even if a technology has a particular power-up behavior. Do not rely on accidental initialization unless the target guarantees it. Reset sequencing is part of integration: reset should be asserted and released safely, and different clock domains need separate synchronization. These distinctions make state behavior portable and predictable.",
+      "example": "module beginner05(input logic clk,rst,en,d,output logic q);\n always_ff @(posedge clk) begin\n  if(rst) q<=1'b0;\n  else if(en) q<=d;\n end\nendmodule",
+      "keyPoints": [
+        "always_ff at a clock edge describes state updates.",
+        "Use nonblocking assignments for edge-triggered register updates.",
+        "Synchronous reset is sampled at edge; asynchronous reset is event driven.",
+        "A disabled register holds state when no sequential assignment is made.",
+        "Document reset polarity and priority; safely synchronize asynchronous reset release."
+      ],
+      "test": {
+        "objective": "Confirm synchronous reset priority, enabled sampling, and disabled hold behavior over clock edges.",
+        "testbench": "module tb_beginner05;\n logic clk=0,rst=0,en=0,d=0,q;beginner05 dut(.clk(clk),.rst(rst),.en(en),.d(d),.q(q));always #5 clk=~clk;\n initial begin rst=1;@(posedge clk);#1;if(q!==0)$fatal(1,\"reset failed\");rst=0;en=1;d=1;@(posedge clk);#1;if(q!==1)$fatal(1,\"capture failed\");en=0;d=0;@(posedge clk);#1;if(q!==1)$fatal(1,\"hold failed\");$display(\"beginner05 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner05. The testbench uses a rising-edge clock, synchronous active-high reset, and samples after NBA updates."
+      },
+      "questions": [
+        {
+          "question": "When does beginner05 sample d?",
+          "options": [
+            "At a rising edge when reset is low and enable is high",
+            "Whenever d changes",
+            "Only when clk falls",
+            "Immediately on reset assertion"
+          ],
+          "answer": 0,
+          "explanation": "The edge-triggered process captures d only when enabled and not reset."
+        },
+        {
+          "question": "What does register do when en=0 and rst=0?",
+          "options": [
+            "Loads zero",
+            "Holds previous value",
+            "Loads d continuously",
+            "Becomes X by definition"
+          ],
+          "answer": 1,
+          "explanation": "No assignment means flip-flop retains state."
+        },
+        {
+          "question": "When does synchronous reset take effect?",
+          "options": [
+            "Immediately on any rst transition",
+            "At falling edge only",
+            "At rising edge while rst is high",
+            "Only when en is high"
+          ],
+          "answer": 2,
+          "explanation": "Reset is checked inside posedge process."
+        },
+        {
+          "question": "Which operator is conventional for flip-flop updates?",
+          "options": [
+            "Blocking assignment in every circumstance",
+            "Continuous assignment",
+            "Case equality",
+            "Nonblocking assignment"
+          ],
+          "answer": 3,
+          "explanation": "Nonblocking assignments model concurrent register updates."
+        },
+        {
+          "question": "Which condition has priority in beginner05?",
+          "options": [
+            "Reset",
+            "Enable",
+            "d",
+            "There is no priority"
+          ],
+          "answer": 0,
+          "explanation": "Reset branch precedes enable branch."
+        },
+        {
+          "question": "Why can multiple registers use nonblocking assignments on one edge?",
+          "options": [
+            "They execute in guaranteed source order",
+            "They sample old values before updates commit",
+            "They create combinational loops",
+            "They update only one register"
+          ],
+          "answer": 1,
+          "explanation": "NBA scheduling models simultaneous state updates."
+        },
+        {
+          "question": "What distinguishes asynchronous reset?",
+          "options": [
+            "It is always active low",
+            "It is checked only with enable",
+            "It can change state without a clock edge",
+            "It cannot be synthesized"
+          ],
+          "answer": 2,
+          "explanation": "Its event can trigger state change independently of clock."
+        },
+        {
+          "question": "What concern exists when deasserting async reset near edge?",
+          "options": [
+            "Arithmetic overflow",
+            "Latch inference",
+            "Reversed Boolean operator",
+            "Metastability or inconsistent release"
+          ],
+          "answer": 3,
+          "explanation": "Recovery/removal timing can be violated; synchronize release."
+        },
+        {
+          "question": "Why wait after rising edge before checking NBA state?",
+          "options": [
+            "The scheduled update may not have committed",
+            "Clock period is zero",
+            "Input becomes analog",
+            "Design requires two resets"
+          ],
+          "answer": 0,
+          "explanation": "Nonblocking update follows execution of the edge process."
+        },
+        {
+          "question": "What is q when reset and enable are both high at rising edge?",
+          "options": [
+            "d",
+            "0",
+            "Previous q",
+            "Random value"
+          ],
+          "answer": 1,
+          "explanation": "Reset branch has priority."
+        },
+        {
+          "question": "What does always_ff communicate?",
+          "options": [
+            "The process is testbench-only",
+            "The block is continuous assignment",
+            "The process describes sequential state logic",
+            "Output is a net"
+          ],
+          "answer": 2,
+          "explanation": "always_ff marks edge-triggered sequential logic."
+        },
+        {
+          "question": "What happens when a clocked process omits assignment in hold branch?",
+          "options": [
+            "A latch is necessarily inferred",
+            "Signal becomes zero",
+            "Process stops forever",
+            "The flip-flop retains its old value"
+          ],
+          "answer": 3,
+          "explanation": "Registers naturally hold when not loaded at active edge."
+        },
+        {
+          "question": "Why make reset polarity explicit in naming or documentation?",
+          "options": [
+            "To avoid active-high and active-low confusion",
+            "It changes flip-flop speed",
+            "It controls signedness",
+            "It guarantees synchronous reset"
+          ],
+          "answer": 0,
+          "explanation": "Polarity is part of interface contract."
+        },
+        {
+          "question": "How should synchronous reset be tested?",
+          "options": [
+            "Assert between edges expecting immediate change",
+            "Assert before edge and verify state after edge",
+            "Toggle only while en high",
+            "Never clock the design"
+          ],
+          "answer": 1,
+          "explanation": "Synchronous reset is sampled at active edge."
+        },
+        {
+          "question": "If en=1,d=0 at rising edge with reset low, what happens?",
+          "options": [
+            "q holds",
+            "q becomes 1",
+            "q becomes 0 after edge",
+            "q is complemented"
+          ],
+          "answer": 2,
+          "explanation": "Enable captures data input."
+        },
+        {
+          "question": "Why avoid blocking assignments in ordinary clocked state logic?",
+          "options": [
+            "They synthesize only into latches",
+            "They make clock asynchronous",
+            "They widen registers",
+            "They can introduce process-order simulation dependencies"
+          ],
+          "answer": 3,
+          "explanation": "Immediate updates can make concurrent state logic order sensitive."
+        },
+        {
+          "question": "Does q clear immediately when rst rises between edges?",
+          "options": [
+            "No, it waits for a rising edge",
+            "Yes, every reset is asynchronous",
+            "Only if d=0",
+            "Only if en=1"
+          ],
+          "answer": 0,
+          "explanation": "Reset is synchronous within the clocked process."
+        },
+        {
+          "question": "What is the purpose of enable?",
+          "options": [
+            "Select reset polarity",
+            "Conditionally update state while otherwise holding it",
+            "Generate second clock",
+            "Make logic combinational"
+          ],
+          "answer": 1,
+          "explanation": "Enable controls whether data loads at edge."
+        },
+        {
+          "question": "What may occur before first reset edge in simulation?",
+          "options": [
+            "q must be zero in all hardware",
+            "q equals d continuously",
+            "q can be unknown",
+            "q becomes Z"
+          ],
+          "answer": 2,
+          "explanation": "Uninitialized simulation registers commonly begin X."
+        },
+        {
+          "question": "Which reset behavior is implemented?",
+          "options": [
+            "Active-low asynchronous reset to one",
+            "Active-high asynchronous reset",
+            "No reset behavior",
+            "Active-high synchronous reset to zero"
+          ],
+          "answer": 3,
+          "explanation": "rst is high-true and tested only on posedge clk."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-06",
+      "title": "Counters, Registers, and Cycle-Level Timing",
+      "description": "Design counters and reason about modulo behavior, enables, reset, and cycle boundaries.",
+      "content": "A register stores a vector across cycles. A counter is a register whose next value derives from its current value, commonly by adding one. An N-bit unsigned counter naturally wraps after 2^N−1 because only N low bits are retained. This modulo behavior is useful for periodic sequences but is not saturating behavior. If an application requires a non-power-of-two limit, compare against terminal count and explicitly choose whether to return to zero, hold, or signal completion.\n\nThe example implements a four-bit synchronous-clear, enabled counter. At a rising edge, clear has priority; otherwise asserted enable increments; otherwise count holds. This priority is part of the design contract and should be apparent in code and tests. Avoid using a derived counter bit as another block's clock unless architecture explicitly permits it; use an enable pulse in one clock domain instead. Generated clocks complicate timing analysis and clock-domain crossing.\n\nCycle-level reasoning distinguishes values before an edge, sampled values at the edge, and updated values afterward. Nonblocking assignments schedule new state after edge-triggered processes evaluate, so a testbench checks just after the edge. Current count is state; next count is a combinational calculation sampled into state. In larger pipelines, operations may take several cycles and valid/ready signals must align with data. This small counter illustrates synchronous design: state changes occur at the common clock boundary.\n\nBoundary tests are essential. Check clear overrides enable, disabled count holds, enabled count increments, and 15 wraps to zero. A test that counts only zero through three never discovers rollover defects. For wider counters, use a parameter or focused setup to reach rollover without a long simulation, while keeping the test representative. Counters consume resources and can toggle many bits; choose width from required range rather than using an unnecessarily large integer. For an external pulse, define whether it is one cycle wide and whether it occurs on reaching or leaving terminal count.",
+      "example": "module beginner06(input logic clk,clear,en,output logic [3:0] count);\n always_ff @(posedge clk) begin\n  if(clear) count<=4'd0;\n  else if(en) count<=count+4'd1;\n end\nendmodule",
+      "keyPoints": [
+        "An N-bit unsigned counter wraps modulo 2^N.",
+        "The example gives synchronous clear priority over enable.",
+        "With enable and clear low, a register holds state.",
+        "Check state after active edge and NBA update.",
+        "Use clock enables instead of casual generated clocks."
+      ],
+      "test": {
+        "objective": "Verify clear, enable, hold, increment, and 4-bit rollover behavior.",
+        "testbench": "module tb_beginner06;\n logic clk=0,clear=0,en=0;logic [3:0] count;beginner06 dut(.clk(clk),.clear(clear),.en(en),.count(count));always #5 clk=~clk;\n task automatic tick;@(posedge clk);#1;endtask\n initial begin clear=1;tick();if(count!==0)$fatal(1,\"clear\");clear=0;en=1;tick();if(count!==1)$fatal(1,\"increment\");en=0;tick();if(count!==1)$fatal(1,\"hold\");en=1;repeat(14)tick();if(count!==15)$fatal(1,\"count to 15\");tick();if(count!==0)$fatal(1,\"wrap\");$display(\"beginner06 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner06. The test establishes state with synchronous clear and checks each value after a rising edge."
+      },
+      "questions": [
+        {
+          "question": "What is natural modulo of an N-bit unsigned counter?",
+          "options": [
+            "2^N",
+            "N",
+            "2N",
+            "2^(N−1)"
+          ],
+          "answer": 0,
+          "explanation": "There are 2^N patterns before wrap."
+        },
+        {
+          "question": "What is maximum four-bit unsigned count?",
+          "options": [
+            "16",
+            "15",
+            "14",
+            "8"
+          ],
+          "answer": 1,
+          "explanation": "Four bits represent zero through fifteen."
+        },
+        {
+          "question": "What follows incrementing 4-bit 15 into 4 bits?",
+          "options": [
+            "16",
+            "15",
+            "0",
+            "1"
+          ],
+          "answer": 2,
+          "explanation": "The carry is discarded and low bits wrap to zero."
+        },
+        {
+          "question": "Which condition has priority in beginner06?",
+          "options": [
+            "enable",
+            "increment",
+            "None",
+            "clear"
+          ],
+          "answer": 3,
+          "explanation": "Clear branch precedes enable."
+        },
+        {
+          "question": "What happens when clear and enable are both low at edge?",
+          "options": [
+            "count holds",
+            "count becomes zero",
+            "count increments",
+            "count becomes X"
+          ],
+          "answer": 0,
+          "explanation": "No assignment retains state."
+        },
+        {
+          "question": "Is beginner06 clear synchronous or asynchronous?",
+          "options": [
+            "Asynchronous active-low",
+            "Synchronous",
+            "Asynchronous active-high",
+            "There is no clear"
+          ],
+          "answer": 1,
+          "explanation": "clear is checked inside posedge process."
+        },
+        {
+          "question": "Why test clear and enable both high?",
+          "options": [
+            "Test signed arithmetic",
+            "Verify falling edge",
+            "Confirm clear priority over increment",
+            "Test tri-state output"
+          ],
+          "answer": 2,
+          "explanation": "Simultaneous condition verifies priority."
+        },
+        {
+          "question": "How many states exist in four bits?",
+          "options": [
+            "4",
+            "15",
+            "32",
+            "16"
+          ],
+          "answer": 3,
+          "explanation": "There are 2^4 patterns."
+        },
+        {
+          "question": "What does saturating counter do?",
+          "options": [
+            "Stops at chosen limit rather than wrapping",
+            "Wraps at each power of two",
+            "Counts only when reset low",
+            "Has no state"
+          ],
+          "answer": 0,
+          "explanation": "Saturation holds at a boundary."
+        },
+        {
+          "question": "Why use enable rather than a counter bit as another clock?",
+          "options": [
+            "Make counter combinational",
+            "Keep state in one clock domain and simplify timing",
+            "Double width",
+            "Eliminate reset"
+          ],
+          "answer": 1,
+          "explanation": "Clock enables avoid unnecessary generated-clock domains."
+        },
+        {
+          "question": "When inspect a nonblocking update in testbench?",
+          "options": [
+            "Before first edge",
+            "Before NBA in same region",
+            "After active edge and NBA update",
+            "Only when enable falls"
+          ],
+          "answer": 2,
+          "explanation": "New value is visible after update commits."
+        },
+        {
+          "question": "How many enabled increments move cleared four-bit count from 0 to 15?",
+          "options": [
+            "14",
+            "16",
+            "4",
+            "15"
+          ],
+          "answer": 3,
+          "explanation": "Fifteen increments reach fifteen."
+        },
+        {
+          "question": "What is terminal-count logic for a non-power-of-two counter?",
+          "options": [
+            "Detect limit and implement defined next action",
+            "Infer signed multiply",
+            "Make vector four-state",
+            "Eliminate clock"
+          ],
+          "answer": 0,
+          "explanation": "Comparison supports custom wrap, hold, or pulse policy."
+        },
+        {
+          "question": "What does count output represent?",
+          "options": [
+            "Combinational sum of inputs",
+            "Currently stored counter state",
+            "Next edge",
+            "Enable history only"
+          ],
+          "answer": 1,
+          "explanation": "Output is register state updated at edges."
+        },
+        {
+          "question": "What determines maximum representable count?",
+          "options": [
+            "Module name",
+            "Testbench delay",
+            "Register width",
+            "Simulator precision"
+          ],
+          "answer": 2,
+          "explanation": "Width determines stored patterns."
+        },
+        {
+          "question": "Why avoid unnecessarily wide counters?",
+          "options": [
+            "They always wrap too early",
+            "They cannot reset",
+            "They force signed arithmetic",
+            "They use extra storage and switching resources"
+          ],
+          "answer": 3,
+          "explanation": "More bits generally require more flops and switching."
+        },
+        {
+          "question": "What happens when clear asserts between edges?",
+          "options": [
+            "Count waits until edge samples clear",
+            "Count clears immediately",
+            "Count increments twice",
+            "Clock stops"
+          ],
+          "answer": 0,
+          "explanation": "Synchronous controls act at active edge."
+        },
+        {
+          "question": "How does wrap differ from saturation?",
+          "options": [
+            "Wrap holds; saturation decrements",
+            "Wrap returns to zero; saturation stays at limit",
+            "They are identical",
+            "Wrap requires reset"
+          ],
+          "answer": 1,
+          "explanation": "They are different next-state policies."
+        },
+        {
+          "question": "What does count plus one in sequential block compute?",
+          "options": [
+            "A second clock",
+            "Immediate outside-edge state change",
+            "Next value sampled into register",
+            "Constant register"
+          ],
+          "answer": 2,
+          "explanation": "Arithmetic forms next-state expression."
+        },
+        {
+          "question": "Why test rollover explicitly?",
+          "options": [
+            "Proves analog setup time",
+            "Checks port order",
+            "Changes reset polarity",
+            "It exercises width boundary where carry is truncated"
+          ],
+          "answer": 3,
+          "explanation": "Rollover is a common off-by-one and width defect."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-07",
+      "title": "Finite-State Machines",
+      "description": "Represent control behavior with explicit state, next-state logic, outputs, and reset transitions.",
+      "content": "A finite-state machine (FSM) is a sequential controller with a finite set of states. Its next state depends on current state and inputs; outputs may depend only on state (Moore) or on state and current inputs (Mealy). Start with a state diagram or transition table, including reset behavior and meaning of each input sequence. Only then translate behavior into RTL. State names should describe behavior, not arbitrary bit patterns. Enumerated `typedef enum logic` states improve clarity and allow synthesis to choose encoding.\n\nA common RTL structure separates a state register from combinational next-state logic. The `always_ff` block updates state on a clock edge and reset establishes an initial state. The `always_comb` block begins with `next_state = state`, then overrides it for transitions. This default defines a hold transition and prevents incomplete assignment. Outputs can be decoded separately. For a Mealy output, assign a default low and assert it only for a matching state/input condition. This can reduce latency versus a Moore output, but makes outputs respond to input changes between edges and can create timing or glitch concerns.\n\nThe example detects two consecutive sampled ones. It has idle and seen-one states. In idle, a one advances to seen-one; in seen-one, another one produces a pulse and remains in seen-one, so a run of ones produces a pulse on each sample after the first. A zero returns to idle. The output is Mealy because it depends on current state and input. Behavior is specified at sampling edges; real hardware still requires input setup and hold.\n\nFSM verification should test transitions, not just outputs in one state. Include reset from a non-reset state, each transition, overlapping sequences, and unexpected-state recovery if defined. Simulation X can reveal uninitialized state, but synthesized encoding and recovery vary by tool and constraints. Never assume a particular enum encoding. Keep reset and output semantics explicit, and drive inputs away from sampling edge to avoid races. For external asynchronous inputs, add synchronizers before the FSM; state logic alone does not eliminate metastability.",
+      "example": "module beginner07(input logic clk,rst,bit_in,output logic pulse);\n typedef enum logic {IDLE,SEEN_ONE} state_t;state_t state,next_state;\n always_ff @(posedge clk) if(rst)state<=IDLE;else state<=next_state;\n always_comb begin next_state=state;pulse=1'b0;case(state)\n  IDLE:if(bit_in)next_state=SEEN_ONE;\n  SEEN_ONE:if(bit_in)begin pulse=1'b1;next_state=SEEN_ONE;end else next_state=IDLE;\n  default:next_state=IDLE;endcase end\nendmodule",
+      "keyPoints": [
+        "An FSM has finite state, next-state function, and defined outputs.",
+        "Moore outputs depend on state; Mealy outputs depend on state and current inputs.",
+        "Separate sequential state storage from combinational next-state logic.",
+        "Set combinational defaults to avoid inferred latches.",
+        "Test transitions and sequences at clock boundaries."
+      ],
+      "test": {
+        "objective": "Check detector pulse on second consecutive sampled one and reset/zero transitions.",
+        "testbench": "module tb_beginner07;\n logic clk=0,rst=0,bit_in=0,pulse;beginner07 dut(.clk(clk),.rst(rst),.bit_in(bit_in),.pulse(pulse));always #5 clk=~clk;\n task automatic sample(input logic value,input logic expected);@(negedge clk);bit_in=value;#1;if(pulse!==expected)$fatal(1,\"output mismatch\");@(posedge clk);#1;endtask\n initial begin rst=1;@(posedge clk);#1;rst=0;sample(1,0);sample(1,1);sample(0,0);sample(1,0);sample(1,1);$display(\"beginner07 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner07. Drive at falling edges, check Mealy output, then let the following rising edge sample the input."
+      },
+      "questions": [
+        {
+          "question": "What information defines an FSM?",
+          "options": [
+            "States, transitions, and output behavior",
+            "Only clock period",
+            "Only output width",
+            "Source-file order"
+          ],
+          "answer": 0,
+          "explanation": "FSM behavior comprises states, transition rules, and outputs."
+        },
+        {
+          "question": "What makes an output Moore-style?",
+          "options": [
+            "Only input",
+            "It depends only on current state",
+            "State and current input",
+            "Previous output"
+          ],
+          "answer": 1,
+          "explanation": "Moore outputs are functions of state alone."
+        },
+        {
+          "question": "Why is beginner07 pulse Mealy-style?",
+          "options": [
+            "Only on state",
+            "Only reset",
+            "It depends on state and current bit_in",
+            "Independent of inputs"
+          ],
+          "answer": 2,
+          "explanation": "Pulse is high in SEEN_ONE only while bit_in is high."
+        },
+        {
+          "question": "What is purpose of next_state equals state default?",
+          "options": [
+            "Asynchronously resets state",
+            "Declares encoding",
+            "Registers pulse",
+            "It supplies hold unless transition overrides"
+          ],
+          "answer": 3,
+          "explanation": "The default prevents omissions and means remain in current state."
+        },
+        {
+          "question": "Which sequence first causes pulse after reset?",
+          "options": [
+            "1 then 1",
+            "0 then 1",
+            "1 then 0",
+            "0 then 0"
+          ],
+          "answer": 0,
+          "explanation": "First one enters SEEN_ONE; next one pulses."
+        },
+        {
+          "question": "After detected 11, what if another 1 is sampled?",
+          "options": [
+            "State returns IDLE",
+            "Pulse asserts again and state stays SEEN_ONE",
+            "Pulse stays latched forever",
+            "FSM resets"
+          ],
+          "answer": 1,
+          "explanation": "State remains SEEN_ONE and each one pulses."
+        },
+        {
+          "question": "What happens in SEEN_ONE when bit_in is zero?",
+          "options": [
+            "Stay with pulse high",
+            "Asynchronous reset",
+            "Next state becomes IDLE and pulse is low",
+            "Output unassigned"
+          ],
+          "answer": 2,
+          "explanation": "Zero branch returns to IDLE with default pulse low."
+        },
+        {
+          "question": "Which process updates FSM state register?",
+          "options": [
+            "Combinational always_comb",
+            "Initial process in synthesizable RTL",
+            "Continuous assign",
+            "Edge-triggered always_ff"
+          ],
+          "answer": 3,
+          "explanation": "State storage updates on a clock edge."
+        },
+        {
+          "question": "What does default output assignment prevent?",
+          "options": [
+            "Unintended latch from incomplete assignment",
+            "Clock skew",
+            "State encoding overflow",
+            "Reset release metastability"
+          ],
+          "answer": 0,
+          "explanation": "Every combinational path receives output value."
+        },
+        {
+          "question": "Why drive inputs away from active edge?",
+          "options": [
+            "Change FSM into Moore",
+            "Avoid testbench races and allow stable sampling",
+            "Force one-hot encoding",
+            "Skip transition tests"
+          ],
+          "answer": 1,
+          "explanation": "Pre-edge stimulus models stable sampled data."
+        },
+        {
+          "question": "What is useful before coding an FSM?",
+          "options": [
+            "Timing report without netlist",
+            "Source list only",
+            "Transition table or state diagram",
+            "Guess binary encoding"
+          ],
+          "answer": 2,
+          "explanation": "A diagram specifies transitions before implementation."
+        },
+        {
+          "question": "What does enum type provide?",
+          "options": [
+            "Guaranteed physical encoding",
+            "Automatic reset",
+            "Input synchronizer",
+            "Readable symbolic state names"
+          ],
+          "answer": 3,
+          "explanation": "Enums improve intent while tools select encoding."
+        },
+        {
+          "question": "Should test assume IDLE is physically binary zero?",
+          "options": [
+            "No, test behavior rather than encoding",
+            "Yes, all enums start zero after synthesis",
+            "Yes, one-bit enums are Gray",
+            "Only with async reset"
+          ],
+          "answer": 0,
+          "explanation": "Synthesis may choose encoding, so avoid assumptions."
+        },
+        {
+          "question": "Why test reset from a non-reset state?",
+          "options": [
+            "Test arithmetic carry",
+            "Verify reset establishes intended state during operation",
+            "Check signedness",
+            "Test sensitivity only"
+          ],
+          "answer": 1,
+          "explanation": "Reset should work regardless of prior state."
+        },
+        {
+          "question": "When does Moore output reflect new state?",
+          "options": [
+            "Immediately before edge as input changes",
+            "Before reset deasserts",
+            "After state register updates at clock edge",
+            "Never"
+          ],
+          "answer": 2,
+          "explanation": "State-dependent output follows updated state."
+        },
+        {
+          "question": "What is Mealy output tradeoff?",
+          "options": [
+            "No combinational logic",
+            "Always adds cycle",
+            "Eliminates transitions",
+            "Lower latency but input-dependent timing or glitches"
+          ],
+          "answer": 3,
+          "explanation": "It can respond within cycle but follows input."
+        },
+        {
+          "question": "What does default branch in beginner07 do?",
+          "options": [
+            "Sets next_state to IDLE for unexpected encoding",
+            "Asserts pulse",
+            "Holds all states",
+            "Creates second clock"
+          ],
+          "answer": 0,
+          "explanation": "Default defines a recovery target."
+        },
+        {
+          "question": "Which describes state and next_state?",
+          "options": [
+            "Both are clocks",
+            "state is stored; next_state is combinational future state",
+            "state is combinational and next_state a port",
+            "They are aliases"
+          ],
+          "answer": 1,
+          "explanation": "One is register and one candidate next value."
+        },
+        {
+          "question": "How should FSM treat input sequences in specification?",
+          "options": [
+            "Assume inputs change only on reset",
+            "Ignore overlap",
+            "Define sampled transitions and outputs exactly",
+            "Rely on enum ordering"
+          ],
+          "answer": 2,
+          "explanation": "Precise semantics enable correct implementation and tests."
+        },
+        {
+          "question": "For stream 1,0,1,1 after reset, when is pulse high?",
+          "options": [
+            "First sample",
+            "Second sample only",
+            "All samples",
+            "On fourth sample only"
+          ],
+          "answer": 3,
+          "explanation": "Zero clears first detection; final pair triggers."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-08",
+      "title": "Testbench Fundamentals and Self-Checking Verification",
+      "description": "Create deterministic SystemVerilog testbenches that drive inputs, compare expected behavior, and report failures.",
+      "content": "A testbench is a simulation environment, not hardware intended for synthesis. It instantiates a design under test (DUT), drives inputs, observes outputs, and decides whether behavior matches specification. A useful testbench is self-checking: it reports failure automatically with enough context to reproduce it and calls `$fatal` or otherwise signals nonzero status. Waveforms help diagnosis, but visual inspection alone makes regressions easy to miss.\n\nFor a combinational DUT, drive input patterns, allow a small simulation delay or use deliberate synchronization, then compare outputs with an independent expected value. For a sequential DUT, drive controls before the active edge, wait for the edge, then allow nonblocking assignments to commit before checking state. Avoid driving and checking in the same scheduling region as DUT update; this can create races. Initialize testbench variables deliberately and establish reset before relying on sequential state.\n\nCase inequality (`!==`) is useful in four-state simulation because it flags X or Z as a mismatch instead of allowing an unknown comparison result to pass silently. Test meaningful boundaries and control combinations, not merely a happy path. Exhaustive tests are affordable for small input spaces; larger spaces benefit from directed cases and constrained random testing. A reference model should be simple and independent enough not to copy the DUT's bug. Include a timeout so a stuck simulation fails instead of hanging. Print PASS only after every check succeeds.\n\nThe example is a two-bit equality comparator. Its testbench iterates over every possible pair, calculates expected equality using loop variables, and checks the DUT. This demonstrates exhaustive verification. In larger projects, separate stimulus, checking, and coverage into tasks or classes, but preserve reproducibility with fixed random seed and log failing inputs. Verification does not prove physical timing or analog properties; it checks modeled function and complements lint, synthesis, and timing analysis. A clear completion condition lets automation distinguish pass from incomplete run.",
+      "example": "module beginner08(input logic [1:0] a,b,output logic eq);\n assign eq=(a==b);\nendmodule",
+      "keyPoints": [
+        "A testbench instantiates DUT, drives stimulus, observes outputs, and checks expected behavior.",
+        "Drive sequential inputs before edge and sample after NBA updates.",
+        "Case inequality (`!==`) detects mismatches involving X or Z.",
+        "Use directed cases or exhaustive enumeration for small input spaces.",
+        "Add failure context and timeout to make regressions actionable."
+      ],
+      "test": {
+        "objective": "Exhaustively compare all 16 pairs of two-bit operands against independent equality expectation.",
+        "testbench": "module tb_beginner08;\n logic [1:0] a,b;logic eq;beginner08 dut(.a(a),.b(b),.eq(eq));\n initial begin for(int x=0;x<4;x++)for(int y=0;y<4;y++)begin a=x;b=y;#1;if(eq!==(x==y))$fatal(1,\"a=%0d b=%0d eq=%b\",a,b,eq);end $display(\"beginner08 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner08. It checks all 16 known input pairs after a settling delay."
+      },
+      "questions": [
+        {
+          "question": "What is the DUT in a testbench?",
+          "options": [
+            "The design instance being verified",
+            "The simulator executable",
+            "A clock generator only",
+            "A synthesis constraint"
+          ],
+          "answer": 0,
+          "explanation": "DUT means design under test."
+        },
+        {
+          "question": "What makes a testbench self-checking?",
+          "options": [
+            "It only dumps waveforms",
+            "It automatically compares results and reports failures",
+            "It randomizes without checking",
+            "It has no expected values"
+          ],
+          "answer": 1,
+          "explanation": "Self-checking automates pass/fail evaluation."
+        },
+        {
+          "question": "Why use case inequality in four-state comparison?",
+          "options": [
+            "It ignores X",
+            "It converts X to zero",
+            "It treats X or Z differences as definite mismatch",
+            "It adds values"
+          ],
+          "answer": 2,
+          "explanation": "Case inequality compares unknown-valued bits explicitly."
+        },
+        {
+          "question": "When should a combinational test sample after input change?",
+          "options": [
+            "Before assigning inputs",
+            "Only at reset edge",
+            "Never check outputs",
+            "After allowing logic to settle"
+          ],
+          "answer": 3,
+          "explanation": "Combinational outputs need time or synchronization to update."
+        },
+        {
+          "question": "When drive data intended for rising edge?",
+          "options": [
+            "Before that edge",
+            "After edge only",
+            "Only during reset",
+            "After checking edge"
+          ],
+          "answer": 0,
+          "explanation": "Stable pre-edge stimulus models setup before sampling."
+        },
+        {
+          "question": "Why wait after rising edge before checking NBA update?",
+          "options": [
+            "Clock period is zero",
+            "NBA update may not have committed",
+            "Input becomes analog",
+            "Design requires two resets"
+          ],
+          "answer": 1,
+          "explanation": "State change follows execution of edge process."
+        },
+        {
+          "question": "What belongs in useful fatal output?",
+          "options": [
+            "Only generic PASS",
+            "Tool license key",
+            "Failing inputs and observed or expected values",
+            "Simulator source"
+          ],
+          "answer": 2,
+          "explanation": "Context makes the failure reproducible."
+        },
+        {
+          "question": "Why reset a sequential DUT before testing?",
+          "options": [
+            "Force combinational outputs high",
+            "Increase randomization",
+            "Remove need for checks",
+            "Establish known internal state"
+          ],
+          "answer": 3,
+          "explanation": "Known state makes expectations meaningful."
+        },
+        {
+          "question": "When is exhaustive testing especially useful?",
+          "options": [
+            "Small finite input spaces",
+            "Analog metastability characterization",
+            "Unlimited state spaces",
+            "Proving routed timing"
+          ],
+          "answer": 0,
+          "explanation": "All combinations are cheap for small n."
+        },
+        {
+          "question": "How many input pairs exist for two 2-bit operands?",
+          "options": [
+            "8",
+            "16",
+            "4",
+            "32"
+          ],
+          "answer": 1,
+          "explanation": "Each has four values, yielding sixteen pairs."
+        },
+        {
+          "question": "What does beginner08 comparator output mean?",
+          "options": [
+            "One when a is greater",
+            "Sum of operands",
+            "One when a equals b",
+            "Carry from subtraction"
+          ],
+          "answer": 2,
+          "explanation": "The RTL implements equality comparison."
+        },
+        {
+          "question": "Why make expected model independent from DUT implementation?",
+          "options": [
+            "Make simulation nondeterministic",
+            "Avoid stimulus",
+            "Force different ports",
+            "Avoid duplicating the same logic bug"
+          ],
+          "answer": 3,
+          "explanation": "Independent expected calculations reveal implementation mistakes."
+        },
+        {
+          "question": "What is a testbench timeout for?",
+          "options": [
+            "Failing a stalled test instead of hanging",
+            "Reducing output width",
+            "Increasing clock automatically",
+            "Replacing assertions"
+          ],
+          "answer": 0,
+          "explanation": "Timeout detects deadlock or missing completion."
+        },
+        {
+          "question": "What is a directed test?",
+          "options": [
+            "Stimulus without expected result",
+            "Selected stimulus targeting behavior or corner case",
+            "Pure random state change",
+            "Synthesis optimization"
+          ],
+          "answer": 1,
+          "explanation": "Vectors are deliberately selected for scenarios."
+        },
+        {
+          "question": "What should a test do with unexpected X on known output?",
+          "options": [
+            "Treat as zero silently",
+            "Skip test",
+            "Report mismatch unless X is explicitly allowed",
+            "Convert design to two-state logic"
+          ],
+          "answer": 2,
+          "explanation": "Unknowns often expose undriven or uninitialized logic."
+        },
+        {
+          "question": "Why use a fixed random seed?",
+          "options": [
+            "Guarantee no failures",
+            "Stop clock toggling",
+            "Force exhaustive coverage",
+            "Reproduce a failing random sequence"
+          ],
+          "answer": 3,
+          "explanation": "Seeded stimulus enables repeatable debugging."
+        },
+        {
+          "question": "Does passing functional simulation prove timing closure?",
+          "options": [
+            "No, timing analysis is also required",
+            "Yes for all conditions",
+            "Yes if exhaustive",
+            "Only for combinational circuits"
+          ],
+          "answer": 0,
+          "explanation": "Simulation does not establish routed path timing."
+        },
+        {
+          "question": "What is a testbench race?",
+          "options": [
+            "Arithmetic overflow",
+            "Stimulus and checking occur in ambiguous same-time scheduling",
+            "Counter rollover",
+            "Conflict between synthesis and lint"
+          ],
+          "answer": 1,
+          "explanation": "Scheduling ambiguity may make outcomes order-dependent."
+        },
+        {
+          "question": "Why print PASS only after all checks?",
+          "options": [
+            "Slow the DUT",
+            "Fix reset",
+            "Prevent partial run from appearing successful",
+            "Enable case inequality"
+          ],
+          "answer": 2,
+          "explanation": "PASS should mean all intended checks completed."
+        },
+        {
+          "question": "What does comparator return for a=2 and b=2?",
+          "options": [
+            "0",
+            "X always",
+            "4",
+            "1"
+          ],
+          "answer": 3,
+          "explanation": "Equal operands make equality true."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-09",
+      "title": "RTL Tool Flow: Simulate, Lint, Synthesize",
+      "description": "Use simulation, lint, synthesis, and timing analysis as complementary stages in a reproducible workflow.",
+      "content": "An RTL tool flow transforms a behavioral description into an implementation while checking different error classes at different stages. Source files and parameters are assembled into a design with selected top module and target configuration. Lint examines suspicious constructs, width mismatches, incomplete assignments, unused signals, and style problems. It does not prove functional correctness, but finds issues before simulation or synthesis. Treat warnings as information to understand, not noise to suppress without review.\n\nSimulation executes RTL with a testbench. It checks functional behavior for selected or exhaustive sequences and exposes X propagation or reset mistakes. It depends on stimulus and checks; a clean run cannot establish that every behavior was tested. Synthesis interprets synthesizable RTL and maps it into logic cells or FPGA resources. It can reveal unsupported constructs, infer unexpected latches, and report resource use. Successful synthesis does not guarantee correct function or timing closure.\n\nImplementation tools may place and route mapped logic. Static timing analysis (STA) checks paths against clock and I/O constraints without requiring simulated vectors. Correct constraints are essential: missing or unrealistic clocks can make results misleading. A design can simulate correctly but fail timing; it can meet timing while implementing the wrong function. Use complementary evidence. Record tool versions, source lists, top module, defines, parameters, and constraints so a run is reproducible. Keep generated artifacts separate from source and inspect warnings and reports.\n\nA disciplined loop is edit, lint, focused simulation, expand tests, synthesize, inspect inferred hardware and warnings, then evaluate timing after implementation. If a test fails, reduce it to a reproducible vector and fix specification or RTL instead of masking the symptom. The example is a parity reduction, a tiny synthesizable target for simulation and synthesis sanity checks. Its testbench checks all eight three-bit values. Tools answer different questions; no single green status replaces review. Version-controlled scripts and constraints reduce hidden environment differences and make regressions repeatable.",
+      "example": "module beginner09(input logic [2:0] data,output logic parity);\n assign parity=^data;\nendmodule",
+      "keyPoints": [
+        "Lint flags suspicious constructs but does not prove function.",
+        "Simulation checks modeled behavior for supplied stimulus and assertions.",
+        "Synthesis maps RTL and exposes unsupported or unexpectedly inferred structures.",
+        "STA depends on accurate clock and I/O constraints.",
+        "Keep sources, top, parameters, defines, tool versions, and constraints reproducible."
+      ],
+      "test": {
+        "objective": "Exhaustively validate odd/even parity for all three-bit values; this is not a timing proof.",
+        "testbench": "module tb_beginner09;\n logic [2:0] data;logic parity;beginner09 dut(.data(data),.parity(parity));\n initial begin for(int v=0;v<8;v++)begin data=v;#1;if(parity!==(^{data}))$fatal(1,\"parity mismatch data=%b\",data);end $display(\"beginner09 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner09. It checks reduction-XOR parity for every input. Synthesis and STA require target-specific setup and constraints."
+      },
+      "questions": [
+        {
+          "question": "What is lint intended to find?",
+          "options": [
+            "Suspicious RTL patterns like width mismatch and incomplete assignment",
+            "Every functional sequence error",
+            "Routed timing automatically",
+            "Exact transistor layout"
+          ],
+          "answer": 0,
+          "explanation": "Lint flags code patterns, not full functional correctness."
+        },
+        {
+          "question": "What does RTL simulation evaluate?",
+          "options": [
+            "Final routed delay automatically",
+            "Modeled behavior under applied testbench stimulus",
+            "All inputs by default",
+            "Foundry process corner"
+          ],
+          "answer": 1,
+          "explanation": "Simulation checks only cases driven and verified."
+        },
+        {
+          "question": "What is synthesis responsible for?",
+          "options": [
+            "Generating all vectors",
+            "Guaranteeing reset correctness",
+            "Mapping synthesizable RTL into hardware resources",
+            "Replacing timing constraints"
+          ],
+          "answer": 2,
+          "explanation": "Synthesis derives hardware implementation from RTL."
+        },
+        {
+          "question": "What does static timing analysis evaluate?",
+          "options": [
+            "Truth table for every input",
+            "All assertions",
+            "Comment accuracy",
+            "Whether constrained paths meet timing requirements"
+          ],
+          "answer": 3,
+          "explanation": "STA compares path delays with timing requirements."
+        },
+        {
+          "question": "Why do timing constraints matter?",
+          "options": [
+            "They define clocks and I/O requirements for path checks",
+            "Make RTL syntax legal",
+            "Force exhaustive simulation",
+            "Define truth table"
+          ],
+          "answer": 0,
+          "explanation": "Bad constraints make timing results misleading."
+        },
+        {
+          "question": "Does successful synthesis prove function correct?",
+          "options": [
+            "Yes, it tests every input",
+            "No, it only shows an implementation was produced",
+            "Yes if no warnings",
+            "Only for parity"
+          ],
+          "answer": 1,
+          "explanation": "Synthesis does not compare implementation against specification."
+        },
+        {
+          "question": "What does reduction XOR of data compute?",
+          "options": [
+            "Bitwise inversion",
+            "Addition with carry",
+            "XOR across all bits",
+            "Equality"
+          ],
+          "answer": 2,
+          "explanation": "It is one for an odd number of ones."
+        },
+        {
+          "question": "What does beginner09 output indicate?",
+          "options": [
+            "Whether data is zero",
+            "Whether MSB is set",
+            "Population count",
+            "Whether data has an odd number of ones"
+          ],
+          "answer": 3,
+          "explanation": "XOR reduction gives odd parity."
+        },
+        {
+          "question": "Why inspect synthesis reports?",
+          "options": [
+            "They reveal inferred structures and resource use",
+            "They replace simulation",
+            "They show only formatting",
+            "They guarantee timing"
+          ],
+          "answer": 0,
+          "explanation": "Reports show tool interpretation and mapping."
+        },
+        {
+          "question": "Which metadata helps reproduce build?",
+          "options": [
+            "Designer username",
+            "Top, sources, parameters, defines, tool versions, constraints",
+            "Time of day",
+            "Waveform colors"
+          ],
+          "answer": 1,
+          "explanation": "These inputs determine processed design and target."
+        },
+        {
+          "question": "Can clean simulation prove timing closure?",
+          "options": [
+            "Yes if clocked",
+            "Yes if exhaustive",
+            "No, timing analysis is separate",
+            "Only if no registers"
+          ],
+          "answer": 2,
+          "explanation": "Functional checks do not compute routed timing."
+        },
+        {
+          "question": "What does inferred latch warning often indicate?",
+          "options": [
+            "Clock constraint too strict",
+            "Too many ports",
+            "Missing finish statement",
+            "Incomplete combinational assignment"
+          ],
+          "answer": 3,
+          "explanation": "Missing assignment can require retention."
+        },
+        {
+          "question": "When review lint warnings?",
+          "options": [
+            "Before dismissing, determine if issue or intentional",
+            "Never, warnings harmless",
+            "Only after tapeout",
+            "Only if simulation fails"
+          ],
+          "answer": 0,
+          "explanation": "Warnings can expose defects and should be understood."
+        },
+        {
+          "question": "What is focused simulation useful for?",
+          "options": [
+            "Replacing synthesis entirely",
+            "Checking targeted behavior quickly",
+            "Establishing transistor reliability",
+            "Generating placement constraints"
+          ],
+          "answer": 1,
+          "explanation": "Focused tests give quick functional feedback."
+        },
+        {
+          "question": "Why separate generated artifacts and RTL sources?",
+          "options": [
+            "Stop simulator reading RTL",
+            "Force all files in one module",
+            "Keep flow inputs and outputs clear and reproducible",
+            "Hide warnings"
+          ],
+          "answer": 2,
+          "explanation": "Separation identifies reproducible design inputs."
+        },
+        {
+          "question": "Simulation passes but STA fails; what is plausible?",
+          "options": [
+            "Simulation proves STA wrong",
+            "RTL unsynthesizable",
+            "Clock must be removed",
+            "Function may be right while path violates timing"
+          ],
+          "answer": 3,
+          "explanation": "Function and timing closure are separate dimensions."
+        },
+        {
+          "question": "Timing passes but function is wrong; what did STA establish?",
+          "options": [
+            "Timing under constraints, not functional correctness",
+            "Truth table is right",
+            "Test expected result",
+            "Reset valid"
+          ],
+          "answer": 0,
+          "explanation": "Timing analysis does not verify functional specification."
+        },
+        {
+          "question": "Why can unconstrained clock mislead STA?",
+          "options": [
+            "RTL changes language",
+            "Tool lacks required period for judging paths",
+            "All paths are safe",
+            "Simulation changes frequency"
+          ],
+          "answer": 1,
+          "explanation": "STA needs valid clock requirements."
+        },
+        {
+          "question": "What should follow a regression failure?",
+          "options": [
+            "Suppress error and report pass",
+            "Change expected output until it passes",
+            "Preserve failing vector and investigate cause",
+            "Skip permanently"
+          ],
+          "answer": 2,
+          "explanation": "Reproduction supports a durable correction."
+        },
+        {
+          "question": "What best describes RTL tool flow?",
+          "options": [
+            "One compiler proves everything",
+            "It makes testbenches obsolete",
+            "Timing-only process",
+            "Complementary checks answer different design questions"
+          ],
+          "answer": 3,
+          "explanation": "Lint, simulation, synthesis, and STA provide distinct evidence."
+        }
+      ]
+    },
+    {
+      "level": "Beginner",
+      "id": "beginner-10",
+      "title": "Parameterized Modules and Reusable RTL",
+      "description": "Write reusable hardware with parameters while guarding widths, boundaries, and elaboration-time assumptions.",
+      "content": "Parameters let one RTL module describe a family of hardware instances. A parameter is resolved during elaboration, before simulation or synthesis of the chosen instance; it is not a runtime input and does not add a programmable register. Width parameters avoid copying nearly identical code for each size. Use named parameter overrides at instantiation so intent remains clear. A parameterized module must be checked at important configurations, especially minimum legal width and boundaries.\n\nThe example counter uses `parameter int WIDTH = 4` and declares count as `[WIDTH-1:0]`. This is valid only when WIDTH is positive; zero or negative width creates an invalid range. Reusable IP should document supported values and, where practical, issue an elaboration-time assertion for invalid choices. Natural rollover depends on width. Unsized constants in parameterized arithmetic can introduce width or signedness surprises, so use sized casts or expressions matching parameter width. `$clog2` is common for address widths, but `$clog2(1)` is zero; handle the singleton case deliberately.\n\nParameterized code should not merely compile at the default. Instantiate multiple widths in tests and include a small width so rollover is reached quickly. Check elaborated port widths and behavior including enable hold and reset. Parameters affect timing, resource use, and implementation choices; a generic description does not guarantee every instance meets the same performance target. If parameters select features or operation modes, test each supported combination rather than assuming one configuration represents all.\n\nReusable modules benefit from clear interfaces and self-contained behavior. Avoid hidden dependencies on global macros or a particular parent module. Keep parameters named, document legal ranges, and make defaults useful but not magical. Compile-time configuration and generate blocks are powerful but increase elaboration complexity; use them when they improve reuse or clarity. A good parameterized component has defined behavior for every supported configuration and tests that prove variation is real, not merely syntactic. Consider whether output width, counter limit, and reset value all scale coherently when width changes.",
+      "example": "module beginner10 #(parameter int WIDTH=4)(input logic clk,rst,en,output logic [WIDTH-1:0] count);\n always_ff @(posedge clk) begin\n  if(rst) count<='0;\n  else if(en) count<=count+1'b1;\n end\nendmodule",
+      "keyPoints": [
+        "Parameters configure hardware at elaboration, not runtime.",
+        "Document legal parameter ranges and guard vector bounds against invalid widths.",
+        "Test minimum and representative larger configurations, not only default.",
+        "Derived widths such as $clog2(1) need deliberate handling.",
+        "Resources and timing can vary across parameter sizes."
+      ],
+      "test": {
+        "objective": "Instantiate a 3-bit counter, verify reset, enable, hold, and modulo-8 rollover.",
+        "testbench": "module tb_beginner10;\n logic clk=0,rst=0,en=0;logic [2:0] count;beginner10 #(.WIDTH(3)) dut(.clk(clk),.rst(rst),.en(en),.count(count));always #5 clk=~clk;\n task automatic tick;@(posedge clk);#1;endtask\n initial begin rst=1;tick();if(count!==0)$fatal(1,\"reset\");rst=0;en=1;repeat(7)tick();if(count!==7)$fatal(1,\"count\");tick();if(count!==0)$fatal(1,\"wrap\");en=0;tick();if(count!==0)$fatal(1,\"hold\");$display(\"beginner10 PASS\");$finish;end\nendmodule",
+        "integrationAssumptions": "Compile with beginner10. The test overrides WIDTH to 3 and assumes synchronous active-high reset and natural modulo behavior."
+      },
+      "questions": [
+        {
+          "question": "When is a SystemVerilog parameter resolved?",
+          "options": [
+            "During elaboration before hardware instance is built",
+            "At every rising edge",
+            "Only when reset asserts",
+            "After simulation completes"
+          ],
+          "answer": 0,
+          "explanation": "Parameters configure elaborated design, not runtime behavior."
+        },
+        {
+          "question": "Does WIDTH add a runtime input port?",
+          "options": [
+            "Yes, it is first data bit",
+            "No, it configures vector size at elaboration",
+            "It is sampled at reset",
+            "Only when above four"
+          ],
+          "answer": 1,
+          "explanation": "A parameter is compile-time configuration."
+        },
+        {
+          "question": "What is output width when WIDTH is 3?",
+          "options": [
+            "4 bits",
+            "2 bits",
+            "3 bits",
+            "8 bits"
+          ],
+          "answer": 2,
+          "explanation": "Range becomes [2:0]."
+        },
+        {
+          "question": "Why is WIDTH zero invalid for [WIDTH-1:0]?",
+          "options": [
+            "It changes clock polarity",
+            "It makes parameter signed",
+            "It forces async reset",
+            "It creates invalid or unintended packed range"
+          ],
+          "answer": 3,
+          "explanation": "Zero width is not the intended packed range."
+        },
+        {
+          "question": "How many states does a 3-bit natural counter have?",
+          "options": [
+            "8",
+            "3",
+            "7",
+            "16"
+          ],
+          "answer": 0,
+          "explanation": "Three bits encode 2^3 patterns."
+        },
+        {
+          "question": "What follows increment of 3-bit count 7?",
+          "options": [
+            "8",
+            "0",
+            "7",
+            "1"
+          ],
+          "answer": 1,
+          "explanation": "The value wraps modulo eight."
+        },
+        {
+          "question": "What is named parameter override #(.WIDTH(3))?",
+          "options": [
+            "Runtime count assignment",
+            "Clock delay",
+            "Elaboration-time setting for the instance",
+            "Reset value"
+          ],
+          "answer": 2,
+          "explanation": "Named override configures width before elaboration."
+        },
+        {
+          "question": "Why test more than default parameter value?",
+          "options": [
+            "Defaults cannot synthesize",
+            "Simulation needs random widths",
+            "Parameters are ignored",
+            "Verify behavior across supported configurations"
+          ],
+          "answer": 3,
+          "explanation": "Defects can occur only at particular sizes."
+        },
+        {
+          "question": "What special case matters with $clog2(N)?",
+          "options": [
+            "For N=1 it returns 0 and may need a minimum guard",
+            "Even N returns X",
+            "It always returns N+1",
+            "It runs each clock"
+          ],
+          "answer": 0,
+          "explanation": "Zero can cause invalid width declarations."
+        },
+        {
+          "question": "How should supported parameter values be documented?",
+          "options": [
+            "Leave ranges implicit",
+            "State legal ranges and boundary assumptions",
+            "Document only filename",
+            "Infer from report"
+          ],
+          "answer": 1,
+          "explanation": "Explicit limits prevent unsupported configurations."
+        },
+        {
+          "question": "What does count assigned unbased unsized zero do at reset?",
+          "options": [
+            "Sets only low bit",
+            "Creates zero-width vector",
+            "Fills the count vector with zeros at declared width",
+            "Assigns runtime parameter"
+          ],
+          "answer": 2,
+          "explanation": "The literal adapts to destination width."
+        },
+        {
+          "question": "Why check count plus one in parameterized RTL?",
+          "options": [
+            "It is a decimal string",
+            "Changes WIDTH at runtime",
+            "Creates second register",
+            "Expression sizing and signedness against width"
+          ],
+          "answer": 3,
+          "explanation": "Parameterized arithmetic still needs width reasoning."
+        },
+        {
+          "question": "What does elaboration-time assertion for WIDTH protect against?",
+          "options": [
+            "Unsupported values such as zero or negative",
+            "Missed clock edge",
+            "Failing test message",
+            "Runtime signed comparison"
+          ],
+          "answer": 0,
+          "explanation": "It rejects invalid configurations before construction."
+        },
+        {
+          "question": "What changes when WIDTH increases?",
+          "options": [
+            "Reset polarity changes",
+            "Storage and natural period increase",
+            "Module becomes combinational",
+            "Enable stops working"
+          ],
+          "answer": 1,
+          "explanation": "Wider counter has more flops and possible states."
+        },
+        {
+          "question": "Why use named parameter overrides?",
+          "options": [
+            "Turn parameters into inputs",
+            "Force one-hot encoding",
+            "Clearly associate value with configuration purpose",
+            "Eliminate top module"
+          ],
+          "answer": 2,
+          "explanation": "Named settings are readable and robust to reorder."
+        },
+        {
+          "question": "How verify generic width variation?",
+          "options": [
+            "Inspect source only",
+            "Assume default proves all",
+            "Change width during simulation",
+            "Instantiate non-default width and check boundaries"
+          ],
+          "answer": 3,
+          "explanation": "Elaboration fixes width so configuration needs a test."
+        },
+        {
+          "question": "Do all parameter configurations have same timing?",
+          "options": [
+            "No, resources and timing can change with size",
+            "Yes, parameters change comments only",
+            "Yes if synthesizable",
+            "Only if no reset"
+          ],
+          "answer": 0,
+          "explanation": "Different hardware sizes can have different timing."
+        },
+        {
+          "question": "What is enable behavior when en=0 and rst=0?",
+          "options": [
+            "Count clears",
+            "Count holds",
+            "Count increments",
+            "Count becomes all ones"
+          ],
+          "answer": 1,
+          "explanation": "No assignment retains state."
+        },
+        {
+          "question": "Why use a parameterized module?",
+          "options": [
+            "Avoid writing testbench",
+            "Add hidden global state",
+            "Reuse behavior across deliberate compile-time configurations",
+            "Make every width legal automatically"
+          ],
+          "answer": 2,
+          "explanation": "Parameters reduce duplication while keeping configuration explicit."
+        },
+        {
+          "question": "What should reusable modules avoid?",
+          "options": [
+            "Explicit ports",
+            "Named parameters",
+            "Documented clock input",
+            "Undocumented global macros or hidden parent signals"
+          ],
+          "answer": 3,
+          "explanation": "Hidden dependencies hinder integration and verification."
+        }
+      ]
+    }
+  ]
+}

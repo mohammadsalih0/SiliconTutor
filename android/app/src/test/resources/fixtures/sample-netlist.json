@@ -1,0 +1,15 @@
+{
+  "creator": "Yosys 0.40",
+  "modules": {
+    "top": {
+      "ports": {"clk": {"direction": "input", "bits": [2]}},
+      "cells": {"$and$logic.v:4$1": {"type": "$and"}},
+      "netnames": {"result": {"bits": [3]}}
+    },
+    "helper": {
+      "ports": {"a": {"direction": "input", "bits": [4]}},
+      "cells": {},
+      "netnames": {}
+    }
+  }
+}

@@ -1,0 +1,2407 @@
+{
+  "level": "Expert",
+  "units": [
+    {
+      "level": "Expert",
+      "id": "expert-01",
+      "title": "CDC/RDC Architecture and Signoff",
+      "description": "Architect, constrain, verify, and sign off clock- and reset-domain crossings without relying on simulation luck.",
+      "content": "Clock-domain crossing is a protocol and reliability problem, not merely a two-flop coding pattern. An asynchronous input sampled near a destination edge can violate setup or hold and enter metastability. A synchronizer gives metastability time to resolve; it does not make it impossible. For a single-bit level, a characterized two- or three-stage chain is appropriate when the source level persists long enough to be observed. The first stage must feed only the next stage, with no functional fanout, and implementation constraints must prevent retiming or harmful placement while preserving intended synchronizer recognition. MTBF depends strongly on destination frequency, asynchronous toggle rate, available settling time, and the library's metastability parameters; a chain length is therefore justified by a reliability target, not folklore.\n\nA pulse is not a level. A narrow pulse can be missed entirely, and independently synchronizing related bits can produce incoherent data. Choose a protocol matching the information: toggle or request/acknowledge for sparse events, a handshake for bundled data, or an asynchronous FIFO for sustained traffic. Gray-coded pointers limit adjacent transitions to one bit, but physical skew constraints are still needed so routing does not undermine the one-bit-at-a-time assumption. Prove reset and simultaneous push/pop corner cases, full/empty behavior, and that data remains stable until acknowledgement.\n\nReset-domain crossings deserve separate analysis. Asynchronous assertion can be necessary, but deassertion should be synchronized independently in each destination domain. Reset release is a timing event: partial release can expose state machines to illegal combinations. Define reset precedence, synchronizer depth, reset values, and whether traffic may start before all participants are ready. RDC tools need intent about asynchronous resets, isolation, and test modes to avoid both false negatives and noisy false positives.\n\nSignoff combines structural CDC/RDC analysis, constraints and waiver review, protocol properties, metastability MTBF assessment, and implementation checks. Review every crossing path by source/destination clocks, data semantics, reset relationship, and receiving protocol. Waivers require an owner, rationale, scope, and proof that the assumed stability or mutual exclusion is real. Re-run after clock, reset, hierarchy, or constraint changes; a clean report is meaningful only when the modeled clocks and exceptions match the delivered design.",
+      "example": "module level_sync #(parameter int STAGES=2) (input logic clk_d, rst_ni, input logic async_in, output logic sync_out);\n  (* ASYNC_REG = \"TRUE\" *) logic [STAGES-1:0] pipe;\n  always_ff @(posedge clk_d or negedge rst_ni)\n    if (!rst_ni) pipe <= '0;\n    else pipe <= {pipe[STAGES-2:0], async_in};\n  assign sync_out = pipe[STAGES-1];\nendmodule",
+      "keyPoints": [
+        "Classify the crossing by data semantics and rate before choosing synchronizer structure.",
+        "Synchronize reset release independently in each receiving clock domain.",
+        "Constrain Gray-pointer skew and protect recognized synchronizer flops from optimization.",
+        "Treat waivers and MTBF calculations as documented signoff evidence, not stylistic exceptions."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify cdc/rdc architecture and signoff behavior against the stated invariants.",
+        "testbench": "module tb_level_sync;\n  logic clk=0, rst_n=0, async_in=0, sync_out;\n  int cycles=0;\n  always #5 clk=~clk;\n  level_sync dut(.clk_d(clk),.rst_ni(rst_n),.async_in(async_in),.sync_out(sync_out));\n  initial begin\n    repeat(2) @(posedge clk); #1; rst_n=1;\n    @(negedge clk); async_in=1;\n    repeat(2) begin @(posedge clk); #1; cycles++; end\n    if (sync_out!==1) $fatal(1,\"level was not observed after synchronizer latency\");\n    @(negedge clk); async_in=0;\n    repeat(2) @(posedge clk); #1;\n    if (sync_out!==0) $fatal(1,\"deasserted level did not propagate\");\n    $display(\"PASS: stable-level synchronization latency\"); $finish;\n  end\n  // Assumption: async_in remains stable across at least two destination edges.\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "For an asynchronous status level that remains asserted for many destination cycles, what is the standard first-line structure?",
+          "options": [
+            "A single destination flip-flop with a false-path exception",
+            "A destination-clocked two-flop synchronizer chain",
+            "A combinational mux controlled by the asynchronous level",
+            "Two synchronizers in parallel followed by XOR"
+          ],
+          "answer": 1,
+          "explanation": "The second stage samples the first after a resolution interval; a false path removes timing analysis but cannot reduce metastability risk."
+        },
+        {
+          "question": "Why must the first synchronizer stage have no functional fanout?",
+          "options": [
+            "Only the next stage should observe its potentially metastable value",
+            "It increases the source clock frequency",
+            "It guarantees the first stage never becomes metastable",
+            "It makes asynchronous reset release synchronous"
+          ],
+          "answer": 0,
+          "explanation": "A metastable first-stage value must be contained; logic observing it can propagate an uncertain value."
+        },
+        {
+          "question": "A 1 ns pulse arrives asynchronously while the destination period is 10 ns. Which statement is correct?",
+          "options": [
+            "The pulse is guaranteed to be stretched by the first flop",
+            "Synchronizer depth guarantees capture independent of pulse width",
+            "Adding a false path guarantees capture",
+            "A two-flop level synchronizer may miss the pulse completely"
+          ],
+          "answer": 3,
+          "explanation": "Sampling has no guarantee of observing a pulse shorter than the destination sampling interval; use event transfer protocol or pulse stretching with a proven handshake."
+        },
+        {
+          "question": "A source needs to send a 32-bit word infrequently to another clock domain. Which architecture preserves word coherence?",
+          "options": [
+            "Synchronize only the most significant bit",
+            "Combinationally cross the bus and synchronize valid only",
+            "Bundled-data handshake holding data stable until acknowledgement",
+            "Thirty-two independent two-flop synchronizers"
+          ],
+          "answer": 2,
+          "explanation": "The handshake synchronizes control while the source holds the bundled bus stable through capture."
+        },
+        {
+          "question": "What property makes Gray-coded FIFO pointers useful across domains?",
+          "options": [
+            "They remove the need to constrain inter-bit routing skew",
+            "Adjacent pointer increments change one bit at a time",
+            "They eliminate all metastability",
+            "They allow binary pointers to be sampled without synchronizers"
+          ],
+          "answer": 1,
+          "explanation": "A Gray transition changes one bit logically; synchronizers and physical skew constraints are still required."
+        },
+        {
+          "question": "In an asynchronous FIFO, why is a two-flop synchronizer still required on each Gray pointer?",
+          "options": [
+            "A single changing Gray bit can itself be metastable",
+            "Gray coding disables all clock-to-Q delay",
+            "FIFO pointers are reset asynchronously and therefore need no clocking",
+            "It converts the pointer to one-hot encoding"
+          ],
+          "answer": 0,
+          "explanation": "Gray coding limits ambiguity to adjacent states but does not remove metastability at a sampling edge."
+        },
+        {
+          "question": "What is the primary effect of adding a synchronizer stage?",
+          "options": [
+            "It makes the source and destination clocks frequency-locked",
+            "It eliminates the need for CDC structural checks",
+            "It guarantees data coherency for arbitrary multi-bit buses",
+            "It increases settling time and MTBF at the cost of latency"
+          ],
+          "answer": 3,
+          "explanation": "Additional settling time reduces failure probability; it does not solve arbitrary bus coherency."
+        },
+        {
+          "question": "Which inputs most strongly affect synchronizer MTBF?",
+          "options": [
+            "Only the source reset value",
+            "Only the destination duty cycle, irrespective of frequency",
+            "Available resolution time, destination clock rate, and asynchronous toggle rate",
+            "RTL line count and signal names"
+          ],
+          "answer": 2,
+          "explanation": "MTBF models depend on sampling opportunities, transition activity, and exponential resolution time characterized for the cell."
+        },
+        {
+          "question": "Why is asynchronous assertion with synchronous deassertion commonly used for reset?",
+          "options": [
+            "It makes reset values irrelevant",
+            "Assertion can act immediately, while synchronized release avoids recovery/removal violations",
+            "It prevents the reset pin from reaching the flop",
+            "It allows arbitrary clocks to share one deassertion edge"
+          ],
+          "answer": 1,
+          "explanation": "Immediate assertion is useful for forcing state safe; synchronized release coordinates recovery into each clock domain."
+        },
+        {
+          "question": "Two unrelated destination clocks share one asynchronously deasserted reset. What is the robust release strategy?",
+          "options": [
+            "Use a reset synchronizer per destination domain",
+            "Synchronize reset once in the faster domain and fan it out",
+            "Remove reset from all data-path state",
+            "Gate both clocks until reset toggles twice"
+          ],
+          "answer": 0,
+          "explanation": "Each domain needs release aligned to its own clock; one domain’s synchronized release is asynchronous to the other."
+        },
+        {
+          "question": "What does a clean CDC tool report fail to prove by itself?",
+          "options": [
+            "That the tool found no structural crossing",
+            "That the configured clocks exist",
+            "That all unconstrained exceptions are reviewed",
+            "That the design meets its functional protocol and reliability requirements"
+          ],
+          "answer": 3,
+          "explanation": "Structural recognition does not prove pulse capture, data stability, reset sequencing, or a target MTBF."
+        },
+        {
+          "question": "Why should a CDC waiver include scope and rationale?",
+          "options": [
+            "To avoid writing assertions",
+            "To make the crossing synchronous by declaration",
+            "To make assumptions reviewable and prevent a broad waiver hiding unrelated crossings",
+            "To suppress all future reports regardless of hierarchy"
+          ],
+          "answer": 2,
+          "explanation": "A narrowly scoped waiver identifies the exact justified crossing and preserves visibility of new or changed paths."
+        },
+        {
+          "question": "What is unsafe about independently synchronizing every bit of a changing binary counter?",
+          "options": [
+            "The receiving clock cannot sample vectors",
+            "Different bits can settle on different cycles and form a value never sent",
+            "Binary counters cannot toggle more than one bit",
+            "Synchronizers force all bits to share clock skew"
+          ],
+          "answer": 1,
+          "explanation": "Each bit is metastability-contained independently, but there is no atomic snapshot or coherency guarantee."
+        },
+        {
+          "question": "A toggle synchronizer transfers an event. What source-side condition is needed?",
+          "options": [
+            "The toggle must not change again before destination logic detects the prior change",
+            "The toggle must pulse high for one source cycle only",
+            "The clocks must have equal periods",
+            "The destination must use combinational edge detection"
+          ],
+          "answer": 0,
+          "explanation": "If toggles occur twice before sampling, the destination can observe no net change; throughput needs acknowledgement or rate bounds."
+        },
+        {
+          "question": "If a handshake acknowledgement can arrive while a new request is launched, what should be checked?",
+          "options": [
+            "The data bus is randomized every cycle regardless of valid",
+            "The request and acknowledgement use identical clock pins",
+            "The synchronizer stages are assigned blocking assignments",
+            "No event is lost or duplicated under simultaneous state transitions"
+          ],
+          "answer": 3,
+          "explanation": "Simultaneous transitions often expose protocol bugs; prove accepted-event accounting and stable bundled data."
+        },
+        {
+          "question": "Which implementation treatment is appropriate for recognized synchronizer registers?",
+          "options": [
+            "Add arbitrary false paths between synchronizer stages",
+            "Mark every source register as asynchronous logic",
+            "Preserve intended chain placement/recognition and prohibit retiming across stages",
+            "Allow retiming to merge the stages into one register"
+          ],
+          "answer": 2,
+          "explanation": "The chain depends on sequential settling time; synthesis/physical optimization must not collapse or reorder it."
+        },
+        {
+          "question": "What does a false-path constraint on an asynchronous input accomplish?",
+          "options": [
+            "Proves the receiving logic is stable",
+            "Excludes meaningless phase-based setup analysis on the async path, not metastability prevention",
+            "Prevents input transitions during the capture aperture",
+            "Enforces a minimum pulse width"
+          ],
+          "answer": 1,
+          "explanation": "False paths are analysis controls; the synchronizer architecture and reliability analysis address metastability."
+        },
+        {
+          "question": "A reset release causes a one-cycle illegal FSM state only in silicon. Which investigation is most relevant?",
+          "options": [
+            "Check reset recovery/removal, per-domain deassertion, and reset-domain interactions",
+            "Increase simulation random seed count only",
+            "Relax all clock uncertainty",
+            "Replace nonblocking assignments with blocking assignments"
+          ],
+          "answer": 0,
+          "explanation": "Asynchronous release can violate recovery/removal and different state elements may leave reset inconsistently."
+        },
+        {
+          "question": "What is essential when waiving a multi-bit CDC because data is “stable”?",
+          "options": [
+            "Assume stable because the bus name contains _hold",
+            "Synchronize only the parity bit",
+            "Set the path false in every mode without review",
+            "Prove and assert the stability window spans destination capture"
+          ],
+          "answer": 3,
+          "explanation": "The bundled-data assumption must be guaranteed by a source protocol and checked under the actual operating conditions."
+        },
+        {
+          "question": "Which change should trigger CDC/RDC signoff rerun?",
+          "options": [
+            "Renaming a local variable with no elaboration effect",
+            "Changing waveform colors in a viewer",
+            "Changing clock/reset topology, hierarchy, or relevant constraints",
+            "Changing a comment in an unrelated test"
+          ],
+          "answer": 2,
+          "explanation": "Analysis depends on clocks, resets, structure, and constraints; design or intent changes can invalidate prior evidence."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-02",
+      "title": "High-Throughput Pipelines and Backpressure",
+      "description": "Design elastic pipelines that sustain throughput while preserving ordering, data integrity, and bounded-resource behavior.",
+      "content": "High-throughput design is about the rate at which work is accepted and retired, not simply the number of pipeline registers. A latency-L pipeline can accept one item per cycle when every stage can advance independently and downstream capacity is available. Backpressure couples that capacity information upstream. A stage holding valid data must keep its payload and sideband metadata stable while blocked; otherwise a downstream consumer can see a changing transaction despite valid remaining asserted. Treat each stage as an elastic buffer with an explicit occupancy invariant.\n\nFor a one-entry stage, transfer occurs on valid && ready. On a clock edge, a new item may replace the old one when the old item transfers; requiring an empty cycle between items needlessly limits throughput to one item every two cycles. Conversely, blindly asserting ready when full can overwrite a stalled item. A skid buffer captures a transaction that has already crossed a combinational ready boundary when downstream stalls, breaking a long combinational path without losing data. Buffer depth must be derived from in-flight work and latency, not guessed.\n\nCombinational ready chains can create timing loops, long paths, or poor physical locality. Registering ready adds a cycle of feedback latency and therefore requires enough buffering to absorb the extra in-flight transactions. Throughput, latency, initiation interval, and buffer capacity are different metrics. For example, a three-cycle pipeline with initiation interval one has three-cycle minimum latency but can retire one item each cycle after fill. A globally stalled pipeline may preserve correctness yet fail performance goals; quantify stall duty, average occupancy, and required bandwidth.\n\nVerification should account for every accepted item exactly once, in order, including simultaneous dequeue/enqueue, reset, full, empty, and prolonged stalls. Scoreboards compare payload and metadata at handshakes, not at arbitrary cycles. Assertions check stable output while blocked and ensure occupancy remains bounded. For multiple producers or variable-latency units, include arbitration fairness and response matching. Physical signoff must examine the ready path, buffering, fanout, and clock load as carefully as forward data latency.",
+      "example": "module elastic1 #(parameter int W=16) (input logic clk,rst_n, input logic in_valid, output logic in_ready, input logic [W-1:0] in_data, output logic out_valid, input logic out_ready, output logic [W-1:0] out_data);\n  logic full; logic [W-1:0] data_q;\n  assign in_ready = !full || out_ready;\n  assign out_valid = full; assign out_data = data_q;\n  always_ff @(posedge clk or negedge rst_n)\n    if (!rst_n) begin full<=0; data_q<='0; end\n    else if (in_ready) begin full<=in_valid; if (in_valid) data_q<=in_data; end\nendmodule",
+      "keyPoints": [
+        "Define acceptance and retirement only at valid/ready handshakes.",
+        "A blocked valid transaction holds payload and metadata stable until accepted.",
+        "Size elastic/skid storage to cover registered backpressure latency and in-flight work.",
+        "Measure initiation interval, latency, occupancy, and stall behavior separately."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify high-throughput pipelines and backpressure behavior against the stated invariants.",
+        "testbench": "module tb_elastic1;\n logic clk=0,rst_n=0,iv=0,ir,ov,orr=0; logic [7:0] id=0,od;\n byte expected[$]; byte got;\n always #5 clk=~clk;\n elastic1 #(.W(8)) dut(clk,rst_n,iv,ir,id,ov,orr,od);\n initial begin\n   repeat(2) @(posedge clk);\n   @(negedge clk); rst_n=1;\n   for (int n=0;n<12;n++) begin\n     @(negedge clk); iv=1; id=n; orr=(n%3!=0);\n     @(posedge clk);\n     // Sample pre-NBA interface values at the active edge. Retire old data\n     // before enqueueing a replacement accepted on this same edge.\n     if (ov && orr) begin\n       if (expected.size()==0) $fatal(1,\"unexpected output transfer\");\n       got=expected.pop_front();\n       if (od!==got) $fatal(1,\"ordering/data mismatch: got %0d expected %0d\",od,got);\n     end\n     if (iv && ir) expected.push_back(id);\n     #1;\n     if (ov && !orr && expected.size()==0) $fatal(1,\"stalled item was lost\");\n   end\n   @(negedge clk); iv=0; orr=1;\n   repeat(3) begin\n     @(posedge clk);\n     if (ov && orr) begin\n       if (expected.size()==0) $fatal(1,\"unexpected drain transfer\");\n       got=expected.pop_front();\n       if (od!==got) $fatal(1,\"drain ordering/data mismatch\");\n     end\n     #1;\n   end\n   if (expected.size()!=0 || ov) $fatal(1,\"undrained output queue\");\n   $display(\"PASS: handshake-driven elastic buffer scoreboard\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "A four-stage pipeline accepts one token each cycle after startup. What is its initiation interval and minimum latency?",
+          "options": [
+            "II=1 cycle; latency=1 cycle",
+            "II=4 cycles; latency=4 cycles",
+            "II=1 cycle; latency=4 cycles",
+            "II=4 cycles; latency=1 cycle"
+          ],
+          "answer": 2,
+          "explanation": "Independent stage advance permits one new token per cycle; the four registered stages still impose four-cycle latency under this convention."
+        },
+        {
+          "question": "For a one-entry elastic stage, why is ready often defined as !full || out_ready?",
+          "options": [
+            "It makes out_valid combinationally depend on input data",
+            "It allows a departing item to be replaced on the same edge",
+            "It permits overwrite even if the downstream is stalled",
+            "It prevents simultaneous enqueue and dequeue"
+          ],
+          "answer": 1,
+          "explanation": "When full and downstream ready, the stored token retires at that edge, so a new token can fill the freed slot without a bubble."
+        },
+        {
+          "question": "While out_valid=1 and out_ready=0, what is the key source-side invariant?",
+          "options": [
+            "Payload and associated metadata remain stable",
+            "Payload changes each cycle to test the receiver",
+            "out_valid must deassert after one cycle",
+            "The producer may count the item as retired"
+          ],
+          "answer": 0,
+          "explanation": "The transaction has not transferred until the handshake; changing it violates the consumer’s stalled-item contract."
+        },
+        {
+          "question": "A ready signal is registered, adding one cycle to backpressure propagation. What architectural consequence follows?",
+          "options": [
+            "Throughput necessarily doubles",
+            "No extra capacity is ever required",
+            "All valid signals should become combinational",
+            "More in-flight items may arrive, so buffering must absorb them"
+          ],
+          "answer": 3,
+          "explanation": "Upstream may continue sending before it observes the registered stop; storage must cover this feedback latency."
+        },
+        {
+          "question": "What problem does a skid buffer principally solve?",
+          "options": [
+            "Eliminates the need for valid",
+            "Guarantees zero-cycle latency across a clock domain",
+            "Captures an in-flight item when registered/late backpressure arrives",
+            "Reorders responses to reduce latency"
+          ],
+          "answer": 2,
+          "explanation": "It absorbs a transaction that crossed the ready boundary before the stall propagated, while helping break long ready paths."
+        },
+        {
+          "question": "For a stream with a 25% average stall fraction, what is the ideal long-run service rate if one item is consumed per unstalled cycle?",
+          "options": [
+            "0.25 cycles per item",
+            "0.75 items per cycle",
+            "4 items per cycle",
+            "1.25 items per cycle"
+          ],
+          "answer": 1,
+          "explanation": "Under the stated independent-rate assumption, only 75% of cycles service an item; burst correlations may affect finite-window results."
+        },
+        {
+          "question": "What does “latency 3, initiation interval 1” mean?",
+          "options": [
+            "Each item takes three cycles, but a new item can start every cycle",
+            "Each item takes one cycle and a new item every three cycles",
+            "Three items are accepted only after three idle cycles",
+            "The pipeline must have exactly three buffer entries"
+          ],
+          "answer": 0,
+          "explanation": "Latency is per-token delay; initiation interval is spacing between accepted tokens."
+        },
+        {
+          "question": "When should a scoreboard remove an expected token from its queue?",
+          "options": [
+            "As soon as output valid rises, even if stalled",
+            "When input valid is asserted regardless of ready",
+            "After a fixed latency, regardless of stalls",
+            "On the observed output valid && ready handshake"
+          ],
+          "answer": 3,
+          "explanation": "Backpressure makes fixed-cycle matching incorrect; retirement occurs only on handshake."
+        },
+        {
+          "question": "Which corner case is most likely to reveal a one-entry buffer bubble or overwrite?",
+          "options": [
+            "Input invalid and output not ready forever",
+            "Only isolated transfers into an empty stage",
+            "Full stage simultaneously drains and accepts a replacement",
+            "Reset held permanently low"
+          ],
+          "answer": 2,
+          "explanation": "Simultaneous dequeue/enqueue tests replacement logic and exposes incorrect ready/full updates."
+        },
+        {
+          "question": "A two-entry FIFO has occupancy 2 and receives push=1,pop=1. What is next occupancy?",
+          "options": [
+            "0",
+            "2",
+            "1",
+            "3"
+          ],
+          "answer": 1,
+          "explanation": "The accepted push and pop cancel; the FIFO remains full after both legal transfers."
+        },
+        {
+          "question": "Why is asserting ready unconditionally on a full buffer unsafe?",
+          "options": [
+            "A stalled current item can be overwritten before it is consumed",
+            "It creates excessive output latency",
+            "It blocks all new producers permanently",
+            "It converts synchronous logic to asynchronous logic"
+          ],
+          "answer": 0,
+          "explanation": "Ready is a promise of capacity; unconditional assertion when no replaceable slot exists violates that promise."
+        },
+        {
+          "question": "A design is correct under stall but falls to one transfer every two cycles with no stalls. Which metric is deficient?",
+          "options": [
+            "Transaction ordering",
+            "Reset assertion time",
+            "Payload width",
+            "Initiation interval / peak throughput"
+          ],
+          "answer": 3,
+          "explanation": "The avoidable empty-cycle bubble raises initiation interval to two even though steady-state capacity should be one per cycle."
+        },
+        {
+          "question": "For a 3-cycle registered stop path and upstream rate of one item/cycle, how many additional slots may be needed?",
+          "options": [
+            "One bit per payload bit",
+            "Three stages of synchronizers",
+            "Up to three items already in flight, depending on where the stop is observed",
+            "Exactly zero, because ready is registered"
+          ],
+          "answer": 2,
+          "explanation": "The upstream can send during the propagation delay; count actual transfer opportunities along the feedback path and provide matching capacity."
+        },
+        {
+          "question": "What is the strongest useful assertion for a stalled output?",
+          "options": [
+            "$stable(payload) |-> valid==0",
+            "valid && !ready |=> valid && $stable(payload)",
+            "valid |-> !ready",
+            "ready |=> !valid"
+          ],
+          "answer": 1,
+          "explanation": "The next sampled cycle must still present the same unconsumed transaction; reset/disable conditions should be specified for the environment."
+        },
+        {
+          "question": "A scoreboard reports duplicate output payload values. Why must it track transaction identity or full expected sequence?",
+          "options": [
+            "Equal payloads can be legal distinct transactions; value-only duplicate detection is ambiguous",
+            "Payloads are always unique in a valid protocol",
+            "Handshake signals cannot be monitored",
+            "It is impossible to compare streams under stalls"
+          ],
+          "answer": 0,
+          "explanation": "Repeated data values may be valid, so compare ordered expected items or attach unique IDs rather than infer duplication from equality."
+        },
+        {
+          "question": "How does long combinational ready chaining hurt implementation?",
+          "options": [
+            "It removes all clock-to-Q delay",
+            "It guarantees constant latency independent of stalls",
+            "It prevents any combinational loops",
+            "It can create long critical paths and placement/fanout pressure"
+          ],
+          "answer": 3,
+          "explanation": "The backward capacity path can become a timing bottleneck and physically span many stages."
+        },
+        {
+          "question": "What should a bounded-occupancy assertion use as its update events?",
+          "options": [
+            "Clock transitions on both interfaces",
+            "Payload changes",
+            "Accepted push and pop handshakes",
+            "Raw valid assertions, regardless of ready"
+          ],
+          "answer": 2,
+          "explanation": "Occupancy changes only when transfers are accepted, so raw intent signals overcount blocked attempts."
+        },
+        {
+          "question": "What is required if two pipelines merge into one output?",
+          "options": [
+            "Drop ready from one source",
+            "Arbitration plus fair or bounded-starvation policy and per-source accounting",
+            "OR the valid signals and concatenate payloads",
+            "Synchronize every data bit independently"
+          ],
+          "answer": 1,
+          "explanation": "A shared resource needs a defined selection policy and tests that no source is starved or duplicated."
+        },
+        {
+          "question": "Why is a fixed-delay testbench comparison fragile for an elastic pipeline?",
+          "options": [
+            "Backpressure changes retirement cycle while preserving order",
+            "An elastic pipeline has no clock",
+            "Payload widths vary each cycle",
+            "Ready cannot be randomized"
+          ],
+          "answer": 0,
+          "explanation": "Variable stalls alter latency; handshake-driven queue comparison checks functional equivalence independent of timing."
+        },
+        {
+          "question": "What does a throughput result of one item/cycle say about latency?",
+          "options": [
+            "It proves latency equals one cycle",
+            "It proves there is no buffering",
+            "It proves the path is combinational",
+            "Nothing by itself; high throughput can coexist with many cycles of latency"
+          ],
+          "answer": 3,
+          "explanation": "Throughput is steady-state rate while latency is per-item delay; they are independent design dimensions."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-03",
+      "title": "Ready/Valid and AXI-Lite-Class Protocols",
+      "description": "Apply synchronous ready/valid transfer semantics and AXI-Lite-class channel rules to robust register interfaces.",
+      "content": "Ready/valid is a local synchronous transfer contract. A beat transfers on a rising edge where valid and ready are both high. The source owns valid and payload: once it presents a beat, it holds valid and all payload fields stable until the handshake. The sink owns ready and may vary it according to capacity. A source must not wait for ready before asserting valid if that creates a deadlock with a sink that waits for valid before asserting ready. Registered interfaces can add latency, but must preserve these ownership rules.\n\nAXI-Lite uses five independent channels: write address (AW), write data (W), write response (B), read address (AR), and read data/response (R). AW and W are independent; a manager can present them in either order or concurrently, and the subordinate must capture each only on its own handshake. A common bug assumes simultaneous AWVALID and WVALID. Another is issuing BVALID before both halves of a write have been accepted. The subordinate must hold BVALID and BRESP stable until BREADY. Similarly, RVALID, RDATA, and RRESP remain stable under R backpressure.\n\nOne outstanding write response or read response may be sufficient for a small control block, but that is an explicit capacity limit. Correctness includes ordering, response generation, and preventing acceptance of more work than can be tracked. Byte strobes select which bytes change; unstrobed register bits must retain their prior value. Address decode should use aligned word addresses and report invalid accesses consistently. Reset values and side effects such as clear-on-read require a defined timing point: typically the AR handshake, not when ARVALID first appears.\n\nVerification should vary AW/W ordering, independent channel stalls, simultaneous read and write, partial strobes, invalid addresses, reset, and held VALID. Scoreboards should model register state and expected responses, while assertions cover stability and eventual response under fairness assumptions. A protocol checker cannot establish the software-visible meaning of a register map; that requires a specified contract. Avoid combinational paths between interface inputs and outputs when prohibited by the integration profile, and document whether throughput allows a new transaction in the same cycle an old one retires.",
+      "example": "module rv_reg #(parameter int W=32)(input logic clk,rst_n, input logic s_valid,output logic s_ready,input logic [W-1:0] s_data,output logic m_valid,input logic m_ready,output logic [W-1:0] m_data);\n logic full; logic [W-1:0] q;\n assign s_ready=!full || m_ready; assign m_valid=full; assign m_data=q;\n always_ff @(posedge clk or negedge rst_n)\n  if(!rst_n) begin full<=0; q<='0; end\n  else if(s_ready) begin full<=s_valid; if(s_valid) q<=s_data; end\nendmodule",
+      "keyPoints": [
+        "A transfer occurs only at a sampling edge with both VALID and READY high.",
+        "The source holds VALID and all payload fields stable while waiting.",
+        "AXI-Lite AW and W are independent and must be buffered/paired independently.",
+        "Honor byte strobes, response backpressure, address validity, and specified side-effect timing."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify ready/valid and axi-lite-class protocols behavior against the stated invariants.",
+        "testbench": "module tb_rv_reg;\n logic clk=0,rst_n=0,sv=0,sr,mv,mr=0; logic [7:0] sd=0,md;\n always #5 clk=~clk;\n rv_reg #(.W(8)) dut(clk,rst_n,sv,sr,sd,mv,mr,md);\n initial begin\n  repeat(2) @(posedge clk);\n  @(negedge clk); rst_n=1;\n  @(negedge clk); sv=1; sd=8'hA1; mr=0; #1;\n  if(!sr) $fatal(1,\"empty register must accept first beat\");\n  @(posedge clk); #1;\n  if(!mv || md!==8'hA1) $fatal(1,\"first beat not stored\");\n  repeat(2) begin\n   @(negedge clk);\n   if(!mv || md!==8'hA1) $fatal(1,\"stalled beat changed before edge\");\n   @(posedge clk); #1;\n   if(!mv || md!==8'hA1) $fatal(1,\"stalled beat was lost or changed\");\n  end\n  @(negedge clk); sd=8'hB2; mr=1; #1;\n  if(!(sv && sr && mv && mr)) $fatal(1,\"expected simultaneous retire/replace handshake\");\n  @(posedge clk); #1;\n  if(!mv || md!==8'hB2) $fatal(1,\"replacement beat not captured after handshake\");\n  @(negedge clk); sv=0; mr=0;\n  if(!mv || md!==8'hB2) $fatal(1,\"replacement beat not retained under stall\");\n  @(posedge clk); #1;\n  if(!mv || md!==8'hB2) $fatal(1,\"replacement beat changed during stall\");\n  @(negedge clk); mr=1; #1;\n  if(!(mv && mr)) $fatal(1,\"expected final drain handshake\");\n  @(posedge clk); #1;\n  if(mv) $fatal(1,\"output did not drain\");\n  $display(\"PASS: stall stability and full-rate replacement\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "At which event does a ready/valid beat transfer?",
+          "options": [
+            "When valid first rises, irrespective of ready",
+            "When ready rises, irrespective of valid",
+            "At the falling edge after valid remains high",
+            "A rising edge with valid and ready both asserted"
+          ],
+          "answer": 3,
+          "explanation": "The handshake is sampled synchronously on the active clock edge when both control signals are high."
+        },
+        {
+          "question": "A source has a beat but READY is low for five cycles. What must it do?",
+          "options": [
+            "Change payload each stalled cycle",
+            "Count the transfer on the first VALID cycle",
+            "Keep VALID and payload stable until a handshake",
+            "Withdraw VALID after one cycle"
+          ],
+          "answer": 2,
+          "explanation": "The sink has not accepted the beat; source-side contract requires the same transaction remain offered."
+        },
+        {
+          "question": "Why is waiting for READY before asserting VALID potentially deadlocking?",
+          "options": [
+            "The protocol requires both signals to be low at reset",
+            "A sink may wait for VALID before asserting READY",
+            "READY is always asynchronous",
+            "VALID must be delayed exactly one cycle"
+          ],
+          "answer": 1,
+          "explanation": "If each side waits for the other to act first, neither starts; the source should present valid independently of ready."
+        },
+        {
+          "question": "In AXI-Lite, what does independence of AW and W mean?",
+          "options": [
+            "Address and data may handshake in different cycles and either order",
+            "They must always be asserted simultaneously",
+            "They share a single READY signal by definition",
+            "The write response precedes both requests"
+          ],
+          "answer": 0,
+          "explanation": "Each channel has its own VALID/READY handshake; pairing requires tracking accepted address and data."
+        },
+        {
+          "question": "When may a subordinate safely assert BVALID for a write?",
+          "options": [
+            "As soon as AWVALID is observed without handshake",
+            "Before WVALID if BREADY is high",
+            "Only in the same cycle as AWREADY",
+            "After both AW and W transfers for that transaction have been accepted"
+          ],
+          "answer": 3,
+          "explanation": "A write response acknowledges the complete write request, which requires accepted address and data."
+        },
+        {
+          "question": "BVALID is high and BREADY is low. Which behavior is required?",
+          "options": [
+            "Change BRESP to the next transaction",
+            "Accept another write and overwrite the response",
+            "Hold BVALID and BRESP stable until the response handshake",
+            "Withdraw BVALID and retry later"
+          ],
+          "answer": 2,
+          "explanation": "A valid response is an offered transaction and must remain unchanged under backpressure."
+        },
+        {
+          "question": "When should a clear-on-read side effect usually take effect?",
+          "options": [
+            "At any combinational address transition",
+            "At the defined accepted read event, commonly AR handshake or response contract point",
+            "Whenever ARVALID is high, even if ARREADY is low",
+            "Only when RREADY is low"
+          ],
+          "answer": 1,
+          "explanation": "The specification must identify the event; applying on an unaccepted request can cause repeated side effects during stalls."
+        },
+        {
+          "question": "A byte-strobe write has WSTRB=0101. What should happen to unstrobed bytes?",
+          "options": [
+            "Retain their previous values",
+            "Be cleared to zero",
+            "Take values from adjacent address",
+            "Become unknown by protocol"
+          ],
+          "answer": 0,
+          "explanation": "WSTRB qualifies byte lanes; only enabled bytes are updated."
+        },
+        {
+          "question": "A design captures AW only when AWVALID && WVALID. What valid traffic does it mishandle?",
+          "options": [
+            "AW and W always handshake together",
+            "No read can ever complete",
+            "BREADY asserted early",
+            "AW may handshake before WVALID arrives"
+          ],
+          "answer": 3,
+          "explanation": "AW and W are independent; the address may legally be accepted before data is offered."
+        },
+        {
+          "question": "A register block accepts one read but has a pending RVALID under stall. What is safe capacity behavior?",
+          "options": [
+            "Drop RVALID until RREADY",
+            "Force RREADY high internally",
+            "Do not accept another read unless it can track it without overwriting the pending response",
+            "Overwrite RDATA with the new address result"
+          ],
+          "answer": 2,
+          "explanation": "The subordinate must preserve response information; acceptance should be limited to available tracking/storage resources."
+        },
+        {
+          "question": "Why should address decode account for alignment?",
+          "options": [
+            "It avoids synchronizer metastability",
+            "Unaligned addresses may select an unintended register or violate the interface contract",
+            "Alignment changes the handshake definition",
+            "AXI-Lite only permits byte addresses to be 0"
+          ],
+          "answer": 1,
+          "explanation": "Register word decode should map legal aligned offsets explicitly and define behavior for unsupported addresses."
+        },
+        {
+          "question": "A manager holds ARVALID but ARREADY stays low. What response signal may the subordinate assert for that unaccepted request?",
+          "options": [
+            "No response is required until the request handshake",
+            "RVALID must assert immediately",
+            "RDATA must change with ARADDR",
+            "BVALID must assert as a substitute"
+          ],
+          "answer": 0,
+          "explanation": "The request has not transferred; response generation before accepted request risks duplicates or stale data."
+        },
+        {
+          "question": "What is the correct monitor accounting point for a write address?",
+          "options": [
+            "AWVALID high at any time",
+            "WVALID && WREADY",
+            "BVALID && BREADY",
+            "AWVALID && AWREADY at the active edge"
+          ],
+          "answer": 3,
+          "explanation": "Only the AW channel handshake constitutes acceptance of the address."
+        },
+        {
+          "question": "What is a useful AXI-Lite write stress case?",
+          "options": [
+            "Only reset cycles",
+            "Read transactions with all READY signals tied high",
+            "AW first, W delayed, then independent B backpressure",
+            "AW and W always together with BREADY always high"
+          ],
+          "answer": 2,
+          "explanation": "Independent delays expose implementations that accidentally assume coupled request channels or unstallable responses."
+        },
+        {
+          "question": "An invalid register address is accessed. What must be determined from the specification?",
+          "options": [
+            "It becomes a CDC crossing",
+            "Defined error response and side-effect behavior",
+            "The subordinate must hang forever",
+            "The manager may infer zero response"
+          ],
+          "answer": 1,
+          "explanation": "Illegal-access behavior is part of the programming contract; a deterministic error response is typical."
+        },
+        {
+          "question": "In same-cycle response retirement and new request acceptance, what must be ensured?",
+          "options": [
+            "Old response data is not overwritten before its handshake and tracking capacity is updated atomically",
+            "New request always has priority, regardless of old response",
+            "VALID can be deasserted combinationally after sampling",
+            "Both transactions get identical IDs"
+          ],
+          "answer": 0,
+          "explanation": "Simultaneous events need deliberate next-state logic to preserve the retiring response and correctly allocate capacity."
+        },
+        {
+          "question": "Which property captures a held read response?",
+          "options": [
+            "ARVALID |-> !RREADY",
+            "RREADY |=> !RVALID",
+            "RDATA==$past(RDATA) always",
+            "RVALID && !RREADY |=> RVALID && $stable({RDATA,RRESP})"
+          ],
+          "answer": 3,
+          "explanation": "Under response backpressure the offer persists with stable data/response; disable or reset behavior should be modeled."
+        },
+        {
+          "question": "What does a bus protocol checker not prove?",
+          "options": [
+            "That payload holds while stalled",
+            "That response channels obey ready/valid",
+            "That each register’s software-visible semantics match the product specification",
+            "That channel handshake timing follows assertions"
+          ],
+          "answer": 2,
+          "explanation": "Protocol legality and functional register-map correctness are distinct verification obligations."
+        },
+        {
+          "question": "A two-bit strobe updates only byte 0, but RTL also modifies a write-one-to-clear status bit. What is the issue?",
+          "options": [
+            "READY must be low during writes",
+            "Side-effect semantics and strobes must be specified per register bit/field",
+            "WSTRB has no meaning in AXI-Lite",
+            "Status bits cannot be written"
+          ],
+          "answer": 1,
+          "explanation": "Register-specific semantics can qualify effects differently; a generic write mask may accidentally clear or set status fields."
+        },
+        {
+          "question": "What is needed to prove an eventual response property under arbitrary stalls?",
+          "options": [
+            "An environment fairness assumption that READY eventually becomes high",
+            "A two-state simulator",
+            "Tie READY low permanently",
+            "Ignore response VALID"
+          ],
+          "answer": 0,
+          "explanation": "No implementation can force progress if the manager refuses to accept a response forever; liveness proof needs fair readiness."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-04",
+      "title": "Temporal SVA and Formal Verification",
+      "description": "Turn interface and state-machine contracts into sound temporal properties, assumptions, and bounded or unbounded proofs.",
+      "content": "Temporal verification is strongest when each property is tied to an explicit clock, reset policy, and environmental contract. In SystemVerilog Assertions, a sampled expression is evaluated at a clocking event; concurrent assertions use sampled values rather than ordinary procedural observation. `|->` starts the consequent in the same sampled cycle as the antecedent match, whereas `|=>` starts on the next sampled cycle. A property such as `valid && !ready |=> valid && $stable(data)` states that a stalled offer persists into the next sample. It should be disabled or conditioned across reset according to the design’s reset contract.\n\nSequences describe temporal patterns; repetition operators have distinct meanings. `[*N]` is consecutive repetition, `[->N]` is a goto repetition with the final match at the last occurrence, and `[=N]` permits trailing nonmatches in a sequence context. `$past` refers to a previous sampled value and is undefined or tool-dependent before sufficient history exists unless guarded with a past-valid flag. `$rose`, `$fell`, and `$stable` also operate on sampled values. Be careful with vacuity: implication passes whenever its antecedent never occurs. Cover properties, antecedent coverage, and nonvacuous checks ensure the scenario was reachable.\n\nFormal tools explore all allowed input sequences, so unconstrained inputs often create physically impossible behavior or state-space explosion. Assumptions should encode only true environment obligations—for example, stable payload while valid is stalled or legal reset sequencing. Assuming the DUT’s desired response can make a broken implementation “prove.” Assertions describe guarantees; assumptions describe environment restrictions; covers request witness traces. Safety properties say something bad never happens and often have finite counterexamples. Liveness properties require eventual progress, usually under fairness assumptions; a permanently deasserted READY makes response completion impossible to guarantee.\n\nBounded model checking proves properties only within a bound unless completeness is established. Induction requires an invariant strong enough to connect arbitrary reachable states to successors. Counterexample triage checks reset initialization, assumptions, abstraction, and the first diverging cycle before changing RTL. Proof signoff records tool/version, elaboration defines, clocks, reset model, assumptions, exclusions, property coverage, and unresolved failures. Assertions are executable design contracts, not decorative comments; review them as carefully as the RTL.",
+      "example": "module sva_contract #(parameter int W=8)(input logic clk,rst_n,valid,ready,input logic [W-1:0] data);\n  property p_hold_while_stalled;\n    @(posedge clk) disable iff (!rst_n) valid && !ready |=> valid && $stable(data);\n  endproperty\n  a_hold_while_stalled: assert property(p_hold_while_stalled);\n  c_stall_seen: cover property(@(posedge clk) disable iff(!rst_n) valid && !ready ##1 valid && ready);\nendmodule",
+      "keyPoints": [
+        "State the sampling clock, reset disable semantics, and antecedent activation explicitly.",
+        "Distinguish overlapped implication from non-overlapped implication and sampled-time delays.",
+        "Check vacuity and cover reachable antecedent/consequent scenarios.",
+        "Separate DUT guarantees, environment assumptions, and progress fairness constraints."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify temporal sva and formal verification behavior against the stated invariants.",
+        "testbench": "module tb_sva_contract;\n logic clk=0,rst_n=0,v=0,r=0; logic [7:0] d=0;\n always #5 clk=~clk;\n sva_contract dut(clk,rst_n,v,r,d);\n initial begin\n  repeat(2) @(negedge clk); rst_n=1;\n  @(negedge clk); v=1; d=8'hA5; r=0;\n  @(negedge clk); if(!v||d!=8'hA5) $fatal(1,\"stall contract violated\");\n  r=1; @(negedge clk); v=0;\n  repeat(2) @(negedge clk);\n  $display(\"PASS: stalled transaction remained stable\"); $finish;\n end\nendmodule",
+        "integrationAssumptions": "Icarus Verilog does not support the concurrent SVA used by sva_contract; its procedural tb_sva_contract alone is not an assertion check. Run the example and testbench with an IEEE 1800 concurrent-assertion simulator such as Questa, VCS, or Xcelium, enabling assertions (for Questa: vlog -sv sva_contract.sv tb_sva_contract.sv; vsim -c -assert work.tb_sva_contract -do \"run -all; quit -f\"). For formal verification, load sva_contract with a formal harness in a property-capable tool such as JasperGold or VC Formal, define the destination clock and reset/initial-state model, prove a_hold_while_stalled, and cover c_stall_seen; do not treat the delay-based simulation testbench as synthesizable formal stimulus. Assume reset is eventually released and that the interface is sampled on each rising edge; the assertion is a DUT guarantee, not an environmental assumption."
+      },
+      "questions": [
+        {
+          "question": "In a concurrent property, when does `A |=> B` sample B relative to a matched A?",
+          "options": [
+            "On the next clocking event",
+            "On the same clocking event",
+            "Only when A falls",
+            "At an arbitrary delta cycle"
+          ],
+          "answer": 0,
+          "explanation": "Non-overlapped implication starts the consequent one sampled cycle after the antecedent match."
+        },
+        {
+          "question": "What does `A |-> B` mean for a single-cycle antecedent?",
+          "options": [
+            "B begins one sampled cycle later",
+            "B is required before A",
+            "B is required only if A never occurs",
+            "B is required in the same sampled cycle as A"
+          ],
+          "answer": 3,
+          "explanation": "Overlapped implication aligns the consequent start with the antecedent match."
+        },
+        {
+          "question": "Why can an implication assertion pass vacuously?",
+          "options": [
+            "It has too many clock edges",
+            "The assertion always forces the antecedent true",
+            "Its antecedent may never match",
+            "The simulator ignores all consequents"
+          ],
+          "answer": 2,
+          "explanation": "Implication is satisfied when its antecedent is false; coverage should confirm the intended trigger occurred."
+        },
+        {
+          "question": "What does `disable iff (!rst_n)` do to an assertion?",
+          "options": [
+            "Makes all inputs unconstrained forever",
+            "Aborts/disables attempts while reset condition is true",
+            "Samples the property on reset falling edge only",
+            "Asserts reset is eventually deasserted"
+          ],
+          "answer": 1,
+          "explanation": "The disable condition suppresses active property evaluation during the specified reset interval."
+        },
+        {
+          "question": "What is the role of a `cover property` next to an assertion?",
+          "options": [
+            "Show that an interesting temporal scenario is reachable/observed",
+            "Constrain the DUT to behave correctly",
+            "Turn a failed assertion into a pass",
+            "Prove all states are reachable"
+          ],
+          "answer": 0,
+          "explanation": "Covers provide witness reachability information and help expose vacuous proofs."
+        },
+        {
+          "question": "A property uses `$past(x)` on the first active cycle. What is a concern?",
+          "options": [
+            "$past always means the current value",
+            "It introduces asynchronous sampling",
+            "It changes x in the DUT",
+            "There may be no valid previous sampled value; guard history"
+          ],
+          "answer": 3,
+          "explanation": "Past-value functions need valid sampled history; a past-valid flag avoids startup ambiguity."
+        },
+        {
+          "question": "Which operator expresses N consecutive matches?",
+          "options": [
+            "[=N]",
+            "##N",
+            "[*N]",
+            "[->N]"
+          ],
+          "answer": 2,
+          "explanation": "Consecutive repetition requires each successive sampled element to match."
+        },
+        {
+          "question": "Which sequence repetition permits intervening nonmatches before the final required occurrence?",
+          "options": [
+            "First_match only",
+            "[->N]",
+            "[*N]",
+            "Throughout"
+          ],
+          "answer": 1,
+          "explanation": "Goto repetition counts occurrences with the final match at the last occurrence; consecutive repetition would reject gaps."
+        },
+        {
+          "question": "What does an assumption mean in formal verification?",
+          "options": [
+            "A restriction on legal environment behavior",
+            "A guarantee made by the DUT",
+            "A cover request for a trace",
+            "A reset value for state"
+          ],
+          "answer": 0,
+          "explanation": "Assumptions constrain inputs/initial conditions and must be justified by the system contract."
+        },
+        {
+          "question": "What is a dangerous consequence of assuming `valid |-> ready` for the DUT interface?",
+          "options": [
+            "It increases solver coverage automatically",
+            "It proves ready is always low",
+            "It models reset recovery",
+            "It can exclude legal stalls and hide a stability bug"
+          ],
+          "answer": 3,
+          "explanation": "If the environment is allowed to stall, the assumption rules out precisely the cases needed to verify backpressure behavior."
+        },
+        {
+          "question": "Why is a safety property often amenable to bounded counterexample search?",
+          "options": [
+            "It can only be proven by simulation",
+            "It has no state-space representation",
+            "A finite bad prefix demonstrates the violation",
+            "It always requires fairness"
+          ],
+          "answer": 2,
+          "explanation": "A safety violation has a finite trace showing the first bad state or event."
+        },
+        {
+          "question": "What does liveness usually require to prove eventual response?",
+          "options": [
+            "No assumptions of any kind",
+            "Fairness assumptions that the environment eventually permits progress",
+            "A permanently blocked receiver",
+            "Only a combinational assertion"
+          ],
+          "answer": 1,
+          "explanation": "Progress cannot be guaranteed if the environment can block the necessary handshake forever."
+        },
+        {
+          "question": "What does bounded model checking through depth 20 establish by itself?",
+          "options": [
+            "No counterexample within the explored bound, not necessarily an unbounded proof",
+            "An inductive proof for every future cycle",
+            "That all state bits are initialized",
+            "That the simulation testbench is correct"
+          ],
+          "answer": 0,
+          "explanation": "A finite bound does not imply completeness unless a completeness threshold or induction proof is established."
+        },
+        {
+          "question": "Why might induction fail even when a design is correct?",
+          "options": [
+            "The clock is too slow",
+            "The testbench has too many transactions",
+            "An assertion is syntactically valid",
+            "The candidate invariant is too weak to relate arbitrary states to reachable successors"
+          ],
+          "answer": 3,
+          "explanation": "Induction considers states beyond the reachable set; strengthening invariants may be needed to exclude spurious transitions."
+        },
+        {
+          "question": "A property checks `valid && !ready |=> valid && $stable(data)`. What common gap remains?",
+          "options": [
+            "It constrains source behavior",
+            "It checks data parity",
+            "No check that the antecedent ever occurs",
+            "It proves transfer ordering across all channels"
+          ],
+          "answer": 2,
+          "explanation": "Implication can pass vacuously if the design never stalls; add a cover or targeted stimulus."
+        },
+        {
+          "question": "How should reset be treated in a proof?",
+          "options": [
+            "Ignore reset because formal is not simulation",
+            "Model reset initialization and deassertion according to actual design/environment behavior",
+            "Assume every state bit is zero without modeling reset",
+            "Disable all assertions permanently"
+          ],
+          "answer": 1,
+          "explanation": "Reset semantics determine reachable states and release behavior; unrealistic initialization can hide or invent bugs."
+        },
+        {
+          "question": "A counterexample diverges only before reset is released. What should be checked first?",
+          "options": [
+            "Whether reset assumptions and initialization match the intended system contract",
+            "Whether assertion naming follows style",
+            "Whether output waveform uses binary",
+            "Whether all inputs are tied high"
+          ],
+          "answer": 0,
+          "explanation": "Formal traces may exploit unconstrained startup; validate reset modeling before diagnosing an RTL defect."
+        },
+        {
+          "question": "Which property is a guarantee rather than an assumption for a compliant source?",
+          "options": [
+            "READY eventually rises, absent a system fairness obligation",
+            "Reset is never asserted",
+            "Input data is never X in silicon",
+            "VALID and payload remain stable while VALID&&!READY"
+          ],
+          "answer": 3,
+          "explanation": "A source guarantee describes DUT behavior; READY progress is an environmental condition unless the design controls it."
+        },
+        {
+          "question": "Why record elaboration defines and tool version in proof signoff?",
+          "options": [
+            "They replace assertion coverage",
+            "They ensure no counterexamples are possible",
+            "They affect the elaborated design and proof interpretation/reproducibility",
+            "They alter the formal clock frequency"
+          ],
+          "answer": 2,
+          "explanation": "A proof applies to the specific configuration and tool semantics used; reproducibility requires preserving that context."
+        },
+        {
+          "question": "What is the first useful step for a failing property counterexample?",
+          "options": [
+            "Increase proof depth without reading the trace",
+            "Find the earliest divergence and inspect assumptions, reset, and sampled timing",
+            "Immediately weaken the assertion",
+            "Delete the failing cover"
+          ],
+          "answer": 1,
+          "explanation": "The shortest causal prefix often distinguishes an actual design bug from a modeling or sampling mistake."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-05",
+      "title": "Scalable UVM Verification Architecture",
+      "description": "Build maintainable UVM environments that scale across configurations, transaction complexity, reuse, and coverage closure.",
+      "content": "A scalable UVM environment separates stimulus intent from pin-level mechanics. A sequence creates transaction objects; a sequencer arbitrates them; a driver converts items into timed interface activity; a monitor reconstructs observed transactions from handshakes. Monitors should be passive and reusable, and scoreboards should consume observed—not merely requested—transactions. This separation lets the same agent operate as active or passive and prevents the test’s expected behavior from being coupled to a buggy driver.\n\nAgents contain a configuration object describing virtual interfaces, active/passive mode, protocol features, and address or timing parameters. Configuration must be established before component build/connect phases, and virtual interfaces should be checked for null rather than silently substituted. The environment’s build phase constructs topology; connect phase wires analysis ports and exports; run phase launches concurrent behavior; check/report phases summarize results. Factory overrides enable targeted specialization, but excessive global overrides obscure which implementation is active. Prefer component-local configuration and explicit type overrides with auditability.\n\nAnalysis ports broadcast immutable observed transactions to independent consumers such as a scoreboard, coverage collector, and protocol checker. A scoreboard predicts from a reference model and compares accepted/retired behavior; it must account for latency, reordering, reset, and simultaneous events. If transactions can be outstanding, match by ID or protocol order rather than a single “last expected” variable. Concurrency uses objections to keep the phase alive while required work completes; raised objections need bounded, justified drop paths. A test that hangs waiting on an unbounded sequence is a verification infrastructure failure, not a passing test.\n\nRandom stimulus is useful only when constrained by legal protocol rules and measured by coverage. Seed reproducibility requires recording the simulator, seed, test, plusargs, configuration, and source revision. Functional coverage models scenarios and crosses that matter; code coverage alone does not establish requirement coverage. Coverage closure examines unreachable bins, missing stimulus, and specification relevance rather than waiving bins indiscriminately. Regression architecture should isolate tests, bound runtime, classify failures, and avoid global state that makes results order-dependent. Reusable agents need documented assumptions, analysis semantics, and reset behavior so integration environments do not infer an unintended contract.",
+      "example": "interface rv_if(input logic clk);\n  logic valid,ready; logic [7:0] data;\nendinterface\nimport uvm_pkg::*;\n\nclass rv_item extends uvm_sequence_item;\n  rand bit [7:0] data; rand int unsigned gap;\n  constraint c_gap { gap inside {[0:3]}; }\n  `uvm_object_utils_begin(rv_item)\n    `uvm_field_int(data,UVM_ALL_ON) `uvm_field_int(gap,UVM_ALL_ON)\n  `uvm_object_utils_end\n  function new(string name=\"rv_item\"); super.new(name); endfunction\nendclass\n\nclass rv_monitor extends uvm_component;\n  `uvm_component_utils(rv_monitor)\n  uvm_analysis_port #(rv_item) ap;\n  virtual rv_if vif;\n  function new(string name,uvm_component parent); super.new(name,parent); ap=new(\"ap\",this); endfunction\n  task run_phase(uvm_phase phase);\n    rv_item tr;\n    forever begin @(posedge vif.clk); if(vif.valid && vif.ready) begin\n      tr=rv_item::type_id::create(\"tr\"); tr.data=vif.data; ap.write(tr);\n    end end\n  endtask\nendclass",
+      "keyPoints": [
+        "Keep sequence intent, driver pin timing, monitor observation, and scoreboard prediction separate.",
+        "Use checked configuration objects and explicit virtual-interface propagation before run phase.",
+        "Scoreboard from observed handshakes and support outstanding IDs, reset, and legal reordering.",
+        "Treat functional coverage, reproducible seeds, bounded objections, and failure classification as signoff artifacts."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify scalable uvm verification architecture behavior against the stated invariants.",
+        "testbench": "module tb_uvm_contract;\n logic clk=0,valid=0,ready=0; logic [7:0] data=0;\n byte exp[$]; byte got;\n always #5 clk=~clk;\n initial begin\n  for(int n=0;n<10;n++) begin\n   @(negedge clk); valid=1; data=n; ready=(n%3!=0);\n   if(valid&&ready) exp.push_back(data);\n   @(posedge clk); #1;\n   if(valid&&ready) begin\n     if(!exp.size()) $fatal(1,\"monitor observed untracked transfer\");\n     got=exp.pop_front(); if(got!==data) $fatal(1,\"transaction mismatch\");\n   end\n  end\n  $display(\"PASS: handshake monitor/scoreboard exercise\"); $finish;\n end\nendmodule\n// Executable exercise: connect rv_if to the DUT, drive legal stalled transactions,\n// publish monitor handshakes through an analysis port, and compare to a reference queue.\n// Assumption: a transaction transfers only on posedge clk when valid && ready.\n",
+        "integrationAssumptions": "Icarus Verilog can run the plain procedural tb_uvm_contract smoke test but does not provide the UVM class library/runtime needed for rv_item and rv_monitor. Run that standalone exercise with iverilog -g2012 -s tb_uvm_contract -o tb_uvm_contract.vvp exercise.sv && vvp tb_uvm_contract.vvp. To exercise the UVM architecture example, use an IEEE 1800.2-capable UVM simulator/environment such as Questa with its bundled UVM library, VCS/UVM, or Xcelium/UVM. Compile rv_if before the UVM classes and include the simulator-supported uvm_pkg/UVM library; add a top-level UVM test that instantiates rv_if and the DUT, places the interface in uvm_config_db before run_phase, creates the monitor, connects its analysis port to a scoreboard/subscriber, and runs a sequence with VALID/payload held stable until VALID && READY at a rising edge. Execute that test through the simulator UVM runner (for Questa, compile with vlog -sv and the bundled UVM package, then run vsim -c -uvm <top> -do \"run -all; quit -f\"); the test should report the scoreboard PASS and terminate with bounded objections. The module tb_uvm_contract is a separate handshake scoreboard smoke test, not itself a UVM test."
+      },
+      "questions": [
+        {
+          "question": "Which component should convert a sequence item into pin-level timing?",
+          "options": [
+            "Scoreboard",
+            "Driver",
+            "Monitor",
+            "Coverage subscriber"
+          ],
+          "answer": 1,
+          "explanation": "The driver owns active pin-level behavior; monitors observe it without driving DUT signals."
+        },
+        {
+          "question": "What should a passive monitor publish?",
+          "options": [
+            "Transactions reconstructed from actual interface handshakes",
+            "The sequence items before they reach the DUT",
+            "Predicted register values only",
+            "Random values unrelated to observed signals"
+          ],
+          "answer": 0,
+          "explanation": "Observed handshakes provide independent evidence of what the DUT interface actually accepted or produced."
+        },
+        {
+          "question": "Why should a scoreboard consume monitor output rather than sequence requests?",
+          "options": [
+            "Sequences cannot be randomized",
+            "Monitors are always active drivers",
+            "Analysis ports modify DUT outputs",
+            "The driver or DUT may fail, so requests do not prove acceptance"
+          ],
+          "answer": 3,
+          "explanation": "Observed transactions allow comparison against actual accepted/retired behavior, exposing lost or malformed requests."
+        },
+        {
+          "question": "In which phase is component topology normally created?",
+          "options": [
+            "report_phase",
+            "final_phase only",
+            "build_phase",
+            "run_phase"
+          ],
+          "answer": 2,
+          "explanation": "Build phase constructs components; run phase executes concurrent stimulus and monitoring."
+        },
+        {
+          "question": "What is the purpose of connect_phase?",
+          "options": [
+            "Generate coverage bins automatically",
+            "Wire ports, exports, and TLM connections after construction",
+            "Start random sequences",
+            "Destroy components"
+          ],
+          "answer": 1,
+          "explanation": "Connect phase joins already-created components and their communication paths."
+        },
+        {
+          "question": "When should a virtual interface be validated?",
+          "options": [
+            "During configuration/build before run-time use",
+            "After the test completes",
+            "Only when the first fatal occurs",
+            "Never; UVM supplies it automatically"
+          ],
+          "answer": 0,
+          "explanation": "Early checking produces a clear configuration failure rather than a null access during simulation."
+        },
+        {
+          "question": "Why configure an agent active or passive?",
+          "options": [
+            "Disable all analysis transactions",
+            "Make a scoreboard random",
+            "Change clock frequency globally",
+            "Reuse the same monitor/protocol model without driving pins in passive contexts"
+          ],
+          "answer": 3,
+          "explanation": "An agent can monitor a connected DUT passively or drive an interface actively depending on environment role."
+        },
+        {
+          "question": "What is the best use of an analysis port?",
+          "options": [
+            "Drive backpressure directly",
+            "Store a global singleton scoreboard",
+            "Broadcast observed transactions to independent subscribers",
+            "Arbitrate sequence requests"
+          ],
+          "answer": 2,
+          "explanation": "Analysis ports support decoupled one-to-many transaction observation."
+        },
+        {
+          "question": "A protocol permits responses out of order with IDs. How should the scoreboard match them?",
+          "options": [
+            "By sorting response payload numerically",
+            "By transaction ID and expected response model",
+            "By assuming FIFO order unconditionally",
+            "By comparing only the most recent item"
+          ],
+          "answer": 1,
+          "explanation": "IDs identify outstanding requests and enable correct association when completion order differs."
+        },
+        {
+          "question": "What common error can produce a permanently hung UVM test?",
+          "options": [
+            "An objection is raised without a bounded drop path",
+            "An analysis port has two subscribers",
+            "A sequence item is factory-created",
+            "A coverage collector samples a handshake"
+          ],
+          "answer": 0,
+          "explanation": "An unbalanced or unbounded objection prevents the phase from ending."
+        },
+        {
+          "question": "What should a functional coverage cross represent?",
+          "options": [
+            "Every signal combination regardless of relevance",
+            "Source-code line coverage only",
+            "A substitute for a scoreboard",
+            "A meaningful combination of requirement scenarios"
+          ],
+          "answer": 3,
+          "explanation": "Cross coverage records combinations that matter to specified behaviors, not merely arbitrary Cartesian products."
+        },
+        {
+          "question": "Why is code coverage not equivalent to requirements coverage?",
+          "options": [
+            "Requirements cannot be tested",
+            "Every code line maps one-to-one to a requirement",
+            "Executed statements may not demonstrate required scenarios or corner-case outcomes",
+            "Code coverage counts only assertions"
+          ],
+          "answer": 2,
+          "explanation": "Coverage of implementation structure does not ensure all specified behavior was exercised and checked."
+        },
+        {
+          "question": "Which metadata is needed to reproduce a randomized failure?",
+          "options": [
+            "A count of passed tests",
+            "Seed, simulator/configuration, test, plusargs, and source revision",
+            "Only the waveform filename",
+            "Only the UVM agent name"
+          ],
+          "answer": 1,
+          "explanation": "Randomization and elaboration depend on more than seed alone; capture execution context to replay reliably."
+        },
+        {
+          "question": "Why can broad global factory overrides hurt reuse?",
+          "options": [
+            "They obscure which component implementation is instantiated and where behavior changes",
+            "They prevent any component reuse",
+            "They disable transaction randomization",
+            "They guarantee faster simulation"
+          ],
+          "answer": 0,
+          "explanation": "Unscoped overrides can silently affect multiple environments and make topology harder to reason about."
+        },
+        {
+          "question": "What is a good response to an uncovered functional bin?",
+          "options": [
+            "Delete every uncovered bin",
+            "Assume code coverage proves it",
+            "Mark the test as passed without analysis",
+            "Determine whether it is unreachable, unstimulated, or irrelevant before changing stimulus or waiving"
+          ],
+          "answer": 3,
+          "explanation": "Coverage closure requires understanding the gap and preserving traceable justification for exclusions."
+        },
+        {
+          "question": "How should reset behavior be represented in reusable agent documentation?",
+          "options": [
+            "Ignore reset in passive mode",
+            "Tie reset into the factory name",
+            "Specify observed/drive sequencing, transaction flush behavior, and monitor restart assumptions",
+            "Assume reset is always synchronous and active high"
+          ],
+          "answer": 2,
+          "explanation": "Users need clear reset semantics to compose agents and interpret scoreboard state correctly."
+        },
+        {
+          "question": "What is the purpose of a reference model in a scoreboard?",
+          "options": [
+            "Prevent all random traffic",
+            "Predict architecturally expected behavior from observed accepted inputs",
+            "Generate DUT clocks",
+            "Replace the monitor"
+          ],
+          "answer": 1,
+          "explanation": "A model derives expected outputs/state independently so actual DUT observations can be checked."
+        },
+        {
+          "question": "Which transaction is accepted by a ready/valid interface?",
+          "options": [
+            "One sampled on an edge where VALID and READY are both asserted",
+            "Every item created by a sequence",
+            "An item with VALID high even when READY is low",
+            "Any payload that changes value"
+          ],
+          "answer": 0,
+          "explanation": "Only the handshake establishes transfer; generated intent may never be accepted."
+        },
+        {
+          "question": "Why should a regression impose timeouts?",
+          "options": [
+            "Guarantee all tests pass",
+            "Avoid storing seeds",
+            "Make the DUT respond faster",
+            "Bound hangs and distinguish infrastructure deadlock from successful completion"
+          ],
+          "answer": 3,
+          "explanation": "Bounded execution prevents a hung objection or missing response from consuming unbounded regression resources."
+        },
+        {
+          "question": "A test passes only when run after another test. What likely issue deserves investigation?",
+          "options": [
+            "The driver uses an analysis port",
+            "The simulator is deterministic",
+            "Hidden shared/global state or incomplete initialization causing order dependence",
+            "The test has too many bins"
+          ],
+          "answer": 2,
+          "explanation": "Order-dependent results indicate non-isolated state, reset, resource, or configuration leakage between tests."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-06",
+      "title": "Cache and Memory Subsystem Design",
+      "description": "Reason about cache geometry, coherence, miss handling, memory ordering, and measurable hierarchy performance.",
+      "content": "Cache architecture begins with explicit geometry and address decomposition. For capacity C bytes, line size B bytes, and S sets, associativity A satisfies C = S × A × B. A byte address splits into block offset, set index, and tag; when B and S are powers of two, their widths are log2(B) and log2(S). A line address is the byte address with offset removed. Confirm width arithmetic for parameterized configurations, especially when a width can be zero, and avoid truncating high address bits that distinguish physical aliases.\n\nA lookup compares tags of valid ways in the indexed set. A hit returns data and updates replacement metadata; a miss allocates a miss-status entry, selects a victim, and may require writeback before refill. Dirty state indicates that memory is stale; evicting a dirty line requires preserving the complete line and address. Nonblocking caches support multiple outstanding misses, but then responses need IDs or ordered tracking, and requests to the same line may need merging. MSHR count, refill bandwidth, writeback buffering, and bank conflicts limit memory-level parallelism. A high hit rate alone does not guarantee high performance if miss latency, queueing, or bandwidth dominates.\n\nWrite policies interact: write-through sends each store downstream and often needs a write buffer; write-back marks a line dirty and defers traffic until eviction. Write-allocate fetches a line on a write miss; no-write-allocate may bypass allocation. Partial stores require byte enables and correct read-modify-write behavior when lower memory lacks byte writes. Uncached and strongly ordered regions must bypass or constrain speculative/cacheable paths as specified.\n\nCoherence is necessary when multiple agents can cache shared writable data. A protocol establishes ownership and visibility, not merely a bus snoop signal. Ordering rules, fences, atomics, and device-memory semantics must be precise. Verification checks line-boundary accesses, aliases, eviction order, dirty writeback contents, simultaneous hits/misses, backpressure, reset, and coherence races. Performance analysis uses traces and queue occupancy to separate compulsory, capacity, conflict, and coherence misses. Data arrays, tags, ECC, replacement state, and refill/writeback paths all require independent integrity and timing consideration.",
+      "example": "module direct_tag #(parameter int AW=16, LINE_BYTES=16, SETS=4, TAGW=AW-$clog2(LINE_BYTES)-$clog2(SETS))\n(input logic clk,rst_n,input logic req,input logic [AW-1:0] addr,output logic hit);\n logic [TAGW-1:0] tags[SETS]; logic valid[SETS];\n wire [$clog2(SETS)-1:0] index=addr[$clog2(LINE_BYTES)+$clog2(SETS)-1:$clog2(LINE_BYTES)];\n wire [TAGW-1:0] tag=addr[AW-1:$clog2(LINE_BYTES)+$clog2(SETS)];\n always_comb hit=req && valid[index] && tags[index]==tag;\n always_ff @(posedge clk or negedge rst_n) if(!rst_n) begin for(int i=0;i<SETS;i++) valid[i]<=0; end\n else if(req&&!hit) begin tags[index]<=tag; valid[index]<=1; end\nendmodule",
+      "keyPoints": [
+        "Derive tag/index/offset widths from capacity, associativity, line size, and address width.",
+        "Track valid, dirty, replacement, and outstanding-miss state with explicit invariants.",
+        "Specify write policy, byte-enable behavior, ordering, uncached regions, and coherence ownership.",
+        "Evaluate miss classes, MSHR/bank/bandwidth limits, and dirty writeback correctness."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify cache and memory subsystem design behavior against the stated invariants.",
+        "testbench": "module tb_direct_tag;\n logic clk=0,rst_n=0,req=0,hit; logic [15:0] addr=0;\n always #5 clk=~clk;\n direct_tag #(.AW(16),.LINE_BYTES(16),.SETS(4)) dut(clk,rst_n,req,addr,hit);\n task automatic access(input logic [15:0] a,input bit expected_hit);\n  @(negedge clk); addr=a; req=1; #1;\n  if(hit!==expected_hit) $fatal(1,\"addr %h hit=%b expected=%b\",a,hit,expected_hit);\n  @(posedge clk); #1;\n endtask\n initial begin\n  repeat(2) @(posedge clk); #1 rst_n=1;\n  access(16'h0120,0); access(16'h0124,1); // same line, different byte offset\n  access(16'h0160,0); // same set, different tag, direct-mapped conflict\n  access(16'h0120,0); access(16'h0120,1);\n  $display(\"PASS: tag/index/offset exercise\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "A cache has 32 KiB capacity, 64-byte lines, and 4 ways. How many sets?",
+          "options": [
+            "64",
+            "2048",
+            "128",
+            "512"
+          ],
+          "answer": 2,
+          "explanation": "Sets = capacity/(line size×ways)=32768/(64×4)=128."
+        },
+        {
+          "question": "For the same cache, how many offset bits are required?",
+          "options": [
+            "4",
+            "6",
+            "7",
+            "8"
+          ],
+          "answer": 1,
+          "explanation": "A 64-byte line requires log2(64)=6 low address bits for byte offset."
+        },
+        {
+          "question": "For 48-bit byte addresses, 128 sets, 64-byte lines, what is tag width?",
+          "options": [
+            "35 bits",
+            "36 bits",
+            "41 bits",
+            "29 bits"
+          ],
+          "answer": 0,
+          "explanation": "Tag bits = 48 - 7 index bits - 6 offset bits = 35."
+        },
+        {
+          "question": "A dirty line is evicted in a write-back cache. What must the controller do?",
+          "options": [
+            "Discard it because memory has the old value",
+            "Write only the tag bits",
+            "Invalidate all sets",
+            "Write the entire modified line to the correct lower-memory line address"
+          ],
+          "answer": 3,
+          "explanation": "Dirty means lower memory may be stale, so preserve the line contents and address through writeback."
+        },
+        {
+          "question": "What does a valid bit represent?",
+          "options": [
+            "Whether the CPU request is aligned",
+            "Whether replacement state is least-recently-used",
+            "Whether the way currently contains an allocated meaningful cache line",
+            "Whether data has been modified"
+          ],
+          "answer": 2,
+          "explanation": "Valid distinguishes initialized/allocated tag-data entries from invalid ways."
+        },
+        {
+          "question": "A direct-mapped cache miss followed by access to an address with same index but different tag is likely what?",
+          "options": [
+            "A byte-lane alias by definition",
+            "A conflict eviction",
+            "A compulsory hit",
+            "A coherence fence"
+          ],
+          "answer": 1,
+          "explanation": "Distinct blocks mapping to one set conflict; in a direct-mapped cache the new tag replaces the prior line."
+        },
+        {
+          "question": "What is the role of an MSHR?",
+          "options": [
+            "Track an outstanding cache miss/refill and associated request state",
+            "Store the replacement policy only",
+            "Decode byte strobes",
+            "Replace dirty data with parity"
+          ],
+          "answer": 0,
+          "explanation": "Miss-status holding registers allow outstanding misses and preserve their addresses/request context."
+        },
+        {
+          "question": "Why can two misses to the same line be merged?",
+          "options": [
+            "Tags become identical on every cache set",
+            "It eliminates the need for valid bits",
+            "It permits responses to be dropped",
+            "One refill can satisfy both requests if ordering and store merging are handled correctly"
+          ],
+          "answer": 3,
+          "explanation": "Coalescing avoids redundant lower-level fetches, but dependent stores and response obligations still need tracking."
+        },
+        {
+          "question": "Which combination describes write-through, no-write-allocate?",
+          "options": [
+            "Mark dirty and never send stores",
+            "Allocate on reads only and discard all writes",
+            "Write every store downstream; a store miss bypasses line allocation",
+            "Write only on eviction; every miss allocates"
+          ],
+          "answer": 2,
+          "explanation": "Write-through propagates each write; no-write-allocate does not install a missed line on store."
+        },
+        {
+          "question": "Why does a partial store miss need careful treatment?",
+          "options": [
+            "Dirty bits cannot represent partial bytes",
+            "Lower memory may not support byte enables, requiring correct merge/read-modify-write",
+            "Tag comparison stops working",
+            "The offset width becomes zero"
+          ],
+          "answer": 1,
+          "explanation": "The subsystem must preserve untouched bytes if downstream write granularity is larger than the store."
+        },
+        {
+          "question": "An access straddles a cache-line boundary. What should the interface/model do?",
+          "options": [
+            "Split or explicitly support the access across both lines per contract",
+            "Silently wrap the byte offset",
+            "Use only the first line tag",
+            "Assume it cannot occur without checking alignment rules"
+          ],
+          "answer": 0,
+          "explanation": "Cross-line accesses involve two line lookups/transactions unless prohibited by the architectural alignment contract."
+        },
+        {
+          "question": "What is true of a cache hit rate as a performance metric?",
+          "options": [
+            "It completely determines execution time",
+            "It is independent of workload locality",
+            "It proves coherence correctness",
+            "It does not capture miss penalty, queueing, bandwidth, or hit latency alone"
+          ],
+          "answer": 3,
+          "explanation": "Average performance also depends on miss service time and throughput constraints."
+        },
+        {
+          "question": "What does a fence primarily establish?",
+          "options": [
+            "A replacement victim",
+            "A guarantee all stores are cache hits",
+            "Ordering constraints among specified memory operations",
+            "A cache-line size change"
+          ],
+          "answer": 2,
+          "explanation": "Fences constrain architectural visibility/order; exact scope depends on the memory model and domain."
+        },
+        {
+          "question": "What does coherence ownership represent?",
+          "options": [
+            "The CPU’s instruction privilege level",
+            "Which agent may hold/write a line under the protocol’s visibility rules",
+            "Which way is least recently used",
+            "Which byte lane is selected"
+          ],
+          "answer": 1,
+          "explanation": "Coherence states regulate sharing and exclusive modification, preserving a defined view among agents."
+        },
+        {
+          "question": "Why are device/uncached regions treated differently from ordinary cacheable memory?",
+          "options": [
+            "Side effects and ordering may forbid caching, speculation, or combining accesses",
+            "Device addresses never use physical address bits",
+            "They are always coherent automatically",
+            "They must use write-back policy"
+          ],
+          "answer": 0,
+          "explanation": "Memory-mapped devices can have side effects, so their access and ordering semantics differ from normal memory."
+        },
+        {
+          "question": "A cache has 4 MSHRs but one refill port. What likely constrains peak refill throughput?",
+          "options": [
+            "The number of tag bits",
+            "The cache’s byte offset width",
+            "Dirty state prevents all hits",
+            "Refill-port service bandwidth may bottleneck despite multiple outstanding misses"
+          ],
+          "answer": 3,
+          "explanation": "MSHRs expose concurrency, but a shared port can serialize actual data returns and limit throughput."
+        },
+        {
+          "question": "Which test best detects missing dirty writeback address bits?",
+          "options": [
+            "Reset with no requests",
+            "Change replacement policy without memory checking",
+            "Evict dirty lines at addresses differing only in high tag bits and compare lower-memory locations",
+            "Read the same line twice without eviction"
+          ],
+          "answer": 2,
+          "explanation": "Incorrect address reconstruction can alias distinct lines during writeback; high-tag variation exposes truncation."
+        },
+        {
+          "question": "What does an ECC/parity check on data arrays fail to cover by itself?",
+          "options": [
+            "Any cache hit",
+            "Tag, valid/dirty metadata, replacement state, and protocol integrity",
+            "The payload bits",
+            "The data array only"
+          ],
+          "answer": 1,
+          "explanation": "Data protection does not automatically protect metadata or control state, which can misroute corrupted data."
+        },
+        {
+          "question": "A simultaneous read hit and refill target the same set. What must RTL define?",
+          "options": [
+            "Array port conflicts and whether old data, new data, or arbitration wins",
+            "Only the CPU reset vector",
+            "AXI-Lite AW/W timing",
+            "The cache’s source clock frequency"
+          ],
+          "answer": 0,
+          "explanation": "Bank/array collision semantics affect correctness and must be resolved by scheduling, bypass, or multiport structure."
+        },
+        {
+          "question": "What distinguishes a compulsory miss from a capacity miss?",
+          "options": [
+            "Compulsory is a dirty eviction; capacity is a coherence retry",
+            "They are identical categories",
+            "Capacity depends only on line offset width",
+            "Compulsory is first reference to a block; capacity arises when working set exceeds storage"
+          ],
+          "answer": 3,
+          "explanation": "Compulsory misses occur on initial access; capacity misses result from insufficient total cache capacity for reuse."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-07",
+      "title": "Clock, Reset, and Power Intent",
+      "description": "Integrate clock/reset architecture with isolation, retention, level shifting, and power-aware verification.",
+      "content": "Clock, reset, and power are architectural interfaces with sequencing contracts. Clock trees define frequency, phase, duty-cycle, uncertainty, and generated-clock relationships; RTL clock enables should generally preserve a recognized clock network rather than create arbitrary gated clocks. Integrated clock-gating cells latch enables in a safe phase to avoid glitches. A derived clock must be declared and constrained with its source relationship, and a clock mux must switch only under a characterized glitch-free protocol. Clock-domain analysis needs mode-specific active clocks, including test and low-power modes.\n\nReset strategy specifies assertion polarity, synchronicity, priority, per-domain release, reset values, and sequencing relative to power-good and clock-stable indications. A reset synchronizer solves release alignment in its receiving domain but cannot compensate for an unstable clock or a domain still power-gated. Reset values should put interfaces into a safe, non-accepting state. Reset deassertion and isolation removal are ordered events: do not expose unknown retained or unpowered state to active logic.\n\nPower intent describes power domains, supply sets, legal power states, isolation boundaries, retention elements, and level shifters. Isolation clamps outputs from a shut-down source to a safe value before supply collapse, and remains asserted until source state is valid after restoration. Retention saves selected state before power-down and restores it before consumers use it; retained does not mean coherent with non-retained state. Level shifters are required where voltage domains demand them, with direction and power-state legality considered. UPF/CPF intent must match RTL hierarchy and implementation cell mapping; a syntactically accepted power file is not proof of a safe sequence.\n\nLow-power entry and exit should be modeled as a protocol: quiesce traffic, drain or cancel outstanding work, save state, assert isolation, gate clocks if required, and remove power in an approved order. Wake-up reverses this with supply-good, clock stabilization, reset/restore, and isolation release. Verify interrupted transitions, asynchronous wake, brownout assumptions, and handshakes at boundaries. Power-aware simulation or formal checks should inject X behavior for off domains and verify clamps/retention, not simply force all signals to zero. Signoff correlates intent, power-aware simulation, structural checks, timing modes, and physical cell insertion.",
+      "example": "module reset_release #(parameter int N=2)(input logic clk,arst_n,output logic srst_n);\n (* ASYNC_REG=\"TRUE\" *) logic [N-1:0] q;\n always_ff @(posedge clk or negedge arst_n)\n   if(!arst_n) q<='0; else q<={q[N-2:0],1'b1};\n assign srst_n=q[N-1];\nendmodule\nmodule isolated_bus #(parameter int W=8)(input logic iso_en,input logic [W-1:0] src,output logic [W-1:0] dst);\n assign dst=iso_en?'0:src;\nendmodule",
+      "keyPoints": [
+        "Model legal clock modes, generated clocks, glitch-free switching, and test clocks explicitly.",
+        "Synchronize reset release per destination domain and sequence it after power/clock readiness.",
+        "Assert isolation before power collapse and release only after restored state is valid.",
+        "Verify power intent against RTL hierarchy, inserted cells, UPF states, and X-aware transition behavior."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify clock, reset, and power intent behavior against the stated invariants.",
+        "testbench": "module tb_reset_isolation;\n logic clk=0,arst_n=0,iso=1; logic [7:0] src=8'hA5,dst; logic srst_n;\n always #5 clk=~clk;\n reset_release #(.N(2)) r(clk,arst_n,srst_n);\n isolated_bus #(.W(8)) i(iso,src,dst);\n initial begin\n  #1; if(dst!==0) $fatal(1,\"isolation clamp failed\");\n  repeat(2) @(posedge clk); #1; if(srst_n!==0) $fatal(1,\"reset released while async reset active\");\n  @(negedge clk); arst_n=1;\n  repeat(2) @(posedge clk); #1; if(srst_n!==1) $fatal(1,\"reset did not release after two stages\");\n  if(dst!==0) $fatal(1,\"isolation released unexpectedly\");\n  @(negedge clk); iso=0; #1; if(dst!==src) $fatal(1,\"isolation release failed\");\n  $display(\"PASS: reset-release and isolation ordering\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "Why are ordinary combinational clock gates unsafe?",
+          "options": [
+            "They increase clock period by definition",
+            "They remove setup timing",
+            "They synchronize asynchronous data",
+            "Enable changes can create glitches or shortened pulses on the clock"
+          ],
+          "answer": 3,
+          "explanation": "A combinational enable transition while clock is active can generate an unintended edge; use characterized integrated gating."
+        },
+        {
+          "question": "What must a generated clock constraint describe?",
+          "options": [
+            "The reset polarity only",
+            "Its CDC waiver list",
+            "Its relationship/source and waveform or divide/multiply behavior",
+            "Only the name of the RTL module"
+          ],
+          "answer": 2,
+          "explanation": "Timing analysis needs the generated clock’s source and phase/frequency relationship to analyze paths correctly."
+        },
+        {
+          "question": "What does a reset synchronizer guarantee?",
+          "options": [
+            "No reset recovery/removal checks are needed",
+            "Deassertion is aligned through stages to its destination clock, subject to a stable clock",
+            "The clock is stable before reset release",
+            "All domains leave reset simultaneously"
+          ],
+          "answer": 1,
+          "explanation": "A local synchronizer coordinates release into one domain; it cannot guarantee another domain’s release or clock readiness."
+        },
+        {
+          "question": "Why assert reset asynchronously in some designs but deassert synchronously?",
+          "options": [
+            "Immediate assertion can force safety, while synchronized release avoids asynchronous recovery timing",
+            "Synchronous assertion is illegal",
+            "Asynchronous release avoids all metastability",
+            "Reset values are not sampled by flops"
+          ],
+          "answer": 0,
+          "explanation": "Release near an active edge can violate recovery/removal; local synchronization mitigates that risk."
+        },
+        {
+          "question": "When should isolation usually be asserted during power-down?",
+          "options": [
+            "After the domain is fully powered off",
+            "Only when the destination clock is stopped",
+            "After isolation cells are removed",
+            "Before the source domain becomes invalid or loses supply"
+          ],
+          "answer": 3,
+          "explanation": "Clamps must protect live logic from unknown/off-domain outputs before source behavior becomes unreliable."
+        },
+        {
+          "question": "When may isolation safely be removed during power-up?",
+          "options": [
+            "Before retention restoration",
+            "While reset is asserted to the destination only",
+            "After supply, clock, reset/restore, and source outputs are valid per sequence",
+            "Immediately when power-enable is requested"
+          ],
+          "answer": 2,
+          "explanation": "Releasing the clamp too early can expose X or stale state; wait for valid restored source behavior."
+        },
+        {
+          "question": "What is a retention flop intended to preserve?",
+          "options": [
+            "State in every unpowered block automatically",
+            "Selected state across a power-domain shutdown/restore sequence",
+            "All combinational outputs without power",
+            "Clock phase across domains"
+          ],
+          "answer": 1,
+          "explanation": "Retention applies to designated state elements and requires save/restore sequencing and supply support."
+        },
+        {
+          "question": "Why might retained state still be inconsistent after wake-up?",
+          "options": [
+            "Related non-retained state or external agents may have changed while the domain was off",
+            "Retention always corrupts every bit",
+            "Power intent cannot include state",
+            "Reset is synchronous"
+          ],
+          "answer": 0,
+          "explanation": "Retained state may be stale relative to live domains and must be reconciled by architectural protocol."
+        },
+        {
+          "question": "What is the function of a level shifter?",
+          "options": [
+            "Synchronize asynchronous transitions",
+            "Isolate a shutoff domain to a clamp value",
+            "Retain register state",
+            "Translate signal voltage between domains within specified direction/range"
+          ],
+          "answer": 3,
+          "explanation": "Voltage translation addresses electrical compatibility; it is distinct from isolation, which blocks invalid values."
+        },
+        {
+          "question": "What is a robust low-power entry sequence?",
+          "options": [
+            "Deassert reset, then stop clocks during active transactions",
+            "Release isolation before save",
+            "Quiesce/drain traffic, save state, assert isolation, then gate clocks/power as specified",
+            "Remove power first and inspect traffic afterward"
+          ],
+          "answer": 2,
+          "explanation": "Quiescing and isolating prevent in-flight work and invalid outputs from escaping during collapse."
+        },
+        {
+          "question": "What condition is essential before ungating a clock after wake?",
+          "options": [
+            "No power-good indication is needed",
+            "Clock source is stable and mode selection is safe",
+            "All output signals are X",
+            "Isolation has already been removed regardless of reset"
+          ],
+          "answer": 1,
+          "explanation": "Consumers must receive clean clock edges; the source and mux/gating state need characterized stability."
+        },
+        {
+          "question": "How should power-aware verification model an off domain?",
+          "options": [
+            "Allow unknown/off behavior and check isolation/retention boundaries",
+            "Force all off-domain outputs to zero without clamp checks",
+            "Keep the domain fully operational in simulation",
+            "Disable all assertions globally"
+          ],
+          "answer": 0,
+          "explanation": "X injection exposes missing isolation and unsafe consumers instead of masking them with convenient zero values."
+        },
+        {
+          "question": "If wake can arrive asynchronously, where should it be handled?",
+          "options": [
+            "Only inside the powered-off clock domain",
+            "As a combinational clock input",
+            "By assuming it aligns with the clock",
+            "Through a safe always-on path with synchronized or handshake-controlled wake sequencing"
+          ],
+          "answer": 3,
+          "explanation": "An off domain cannot reliably process a wake input; an always-on controller captures and sequences it."
+        },
+        {
+          "question": "What is the purpose of UPF/CPF power-state tables?",
+          "options": [
+            "Define cache replacement policy",
+            "Set simulation random seeds",
+            "Describe legal combinations/sequences of domain power states",
+            "Replace RTL functional specifications"
+          ],
+          "answer": 2,
+          "explanation": "Power intent formalizes legal states and transitions for tools and implementation."
+        },
+        {
+          "question": "What does a syntactically valid power intent file not prove?",
+          "options": [
+            "That state tables exist",
+            "That hierarchy, supply mapping, sequencing, and inserted cells are correct",
+            "That the parser accepted its syntax",
+            "That power domains were named"
+          ],
+          "answer": 1,
+          "explanation": "Consistency checks against actual RTL and implementation are still required."
+        },
+        {
+          "question": "Why include test and scan clocks in clock-mode analysis?",
+          "options": [
+            "They create operating modes and paths with different clock relationships",
+            "Scan has no timing impact",
+            "They change only data polarity",
+            "It eliminates generated clocks"
+          ],
+          "answer": 0,
+          "explanation": "Mode-specific clocks affect constraints, CDC structure, and timing closure during test operation."
+        },
+        {
+          "question": "What is the danger of deasserting reset before power-good?",
+          "options": [
+            "It shortens setup time safely",
+            "It guarantees retained data integrity",
+            "It makes isolation unnecessary",
+            "Flops may not have valid supply and can enter unpredictable state"
+          ],
+          "answer": 3,
+          "explanation": "Reset behavior assumes powered circuitry; reset release must follow supply readiness."
+        },
+        {
+          "question": "Which ordering best protects restored state from consumers?",
+          "options": [
+            "Ungate all clocks before power-good",
+            "Clear retention before restoring data",
+            "Restore and validate source state while isolation remains asserted, then release clamp",
+            "Release isolation before supply stabilization"
+          ],
+          "answer": 2,
+          "explanation": "Holding isolation during restore prevents consumers observing intermediate or invalid values."
+        },
+        {
+          "question": "Why must power intent and physical implementation be correlated?",
+          "options": [
+            "It eliminates IR-drop analysis",
+            "The flow must insert correct isolation, retention, and level-shifter cells at mapped boundaries",
+            "UPF changes RTL syntax",
+            "It determines software cacheability automatically"
+          ],
+          "answer": 1,
+          "explanation": "Intent only describes requirements; implementation must map them to real cells and verify placement/connectivity."
+        },
+        {
+          "question": "What failure is likely if a clock mux switches asynchronously between two active clocks?",
+          "options": [
+            "A runt or extra clock pulse can corrupt sequential state",
+            "The clocks become phase-locked",
+            "All flops automatically reset",
+            "Only combinational paths are affected"
+          ],
+          "answer": 0,
+          "explanation": "An uncontrolled transition can produce malformed edges; use glitch-free switching with safe source handoff."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-08",
+      "title": "Timing Closure and Physical Implementation",
+      "description": "Close timing by connecting constraints, static analysis, placement/routing effects, and disciplined optimization.",
+      "content": "Static timing analysis (STA) checks path delays against clock constraints without enumerating input vectors. A setup check compares the latest data arrival with the capture edge minus setup time and uncertainty; a hold check compares earliest data arrival with the same-edge capture requirement plus hold time. Launch and capture clock latency/skew affect both checks, often in opposite directions. Positive setup slack does not imply hold safety. Constraints must define clocks, generated clocks, input/output delays, uncertainty, false and multicycle paths, and operating corners; missing or overbroad exceptions make reports misleading.\n\nA multicycle path is a functional timing exception only when the design guarantees the destination is not required to sample on intervening edges. Setup multicycle changes often require a corresponding hold adjustment to preserve intended edge separation. A false path is appropriate only when no functional timing relationship exists, such as a properly synchronized asynchronous input before its first stage; it must not hide ordinary synchronous paths. Review unconstrained endpoints, exception coverage, and clock interaction reports before interpreting a green summary.\n\nPhysical delay includes cell delay, interconnect, slew, load, and coupling. Placement and routing change wire delay and capacitance; high fanout control nets may need buffering or replication. Congestion causes detours, degraded slew, and longer paths. Clock-tree synthesis inserts clock buffers and skew that alter path budgets. Setup repair may upsize cells or restructure logic, increasing area, power, and hold risk. Hold repair inserts delay, potentially consuming setup margin. Optimization is iterative and corner-dependent; repair at one corner may worsen another.\n\nThe critical path must be classified: logic depth, high fanout, poor placement, memory access, clock uncertainty, or an invalid constraint. Optimize the true dominant component rather than blindly adding pipeline stages or upsizing. Pipelining changes latency and requires protocol/verification updates; retiming can affect reset and equivalence assumptions. Timing closure includes setup/hold across modes and corners, signal integrity, clock checks, transition/capacitance/fanout limits, and physical verification. Preserve reports and constraint revisions so signoff demonstrates the delivered netlist, not an earlier RTL snapshot.",
+      "example": "module constrained_path #(parameter int W=16)(input logic clk,rst_n,input logic en,input logic [W-1:0] a,b,output logic [W-1:0] q);\n logic [W-1:0] sum;\n always_comb sum=a+b;\n always_ff @(posedge clk or negedge rst_n) if(!rst_n) q<='0; else if(en) q<=sum;\nendmodule\n// Example SDC intent (tool syntax may vary):\n// create_clock -name core_clk -period 1.000 [get_ports clk]\n// set_clock_uncertainty -setup 0.080 [get_clocks core_clk]\n// set_input_delay 0.150 -clock core_clk [get_ports {a[*] b[*] en}]\n// set_output_delay 0.120 -clock core_clk [get_ports {q[*]}]",
+      "keyPoints": [
+        "Audit clocks, I/O delays, exceptions, corners, and unconstrained endpoints before timing optimization.",
+        "Analyze setup and hold independently; skew and repair affect them differently.",
+        "Use multicycle/false-path exceptions only when architectural behavior proves them valid.",
+        "Correlate timing changes with routed parasitics, congestion, power, equivalence, and delivered netlist."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify timing closure and physical implementation behavior against the stated invariants.",
+        "testbench": "module tb_constrained_path;\n logic clk=0,rst_n=0,en=0; logic [15:0] a=0,b=0,q;\n always #5 clk=~clk;\n constrained_path dut(clk,rst_n,en,a,b,q);\n initial begin\n  repeat(2) @(posedge clk); #1 rst_n=1;\n  for(int i=0;i<100;i++) begin\n   @(negedge clk); a=$urandom; b=$urandom; en=(i%4!=0);\n   @(posedge clk); #1;\n   if(en && q !== (a+b)) $fatal(1,\"registered sum mismatch\");\n  end\n  $display(\"PASS: functional check; evaluate timing separately with declared constraints\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "What does positive setup slack establish for a path?",
+          "options": [
+            "The setup requirement is met under the analyzed constraints/corner",
+            "The hold requirement is met too",
+            "The path is functionally correct",
+            "All operating corners meet timing"
+          ],
+          "answer": 0,
+          "explanation": "Setup and hold are separate checks; passing one does not imply passing the other or other corners."
+        },
+        {
+          "question": "What is a setup timing check fundamentally comparing?",
+          "options": [
+            "Earliest arrival against same-edge hold requirement",
+            "Only clock period against cell area",
+            "Input voltage against output slew",
+            "Latest data arrival against required capture time"
+          ],
+          "answer": 3,
+          "explanation": "Setup uses maximum data delay and required capture timing including setup time, uncertainty, and clock effects."
+        },
+        {
+          "question": "What physical effect can worsen hold after clock-tree synthesis?",
+          "options": [
+            "Increasing logical vector width without routing",
+            "Changing only the output filename",
+            "Capture/launch skew and minimum data-path delay relationship",
+            "A longer setup uncertainty alone"
+          ],
+          "answer": 2,
+          "explanation": "Clock insertion delays change relative edge arrival; hold depends on earliest data and skew."
+        },
+        {
+          "question": "When is a false path exception defensible?",
+          "options": [
+            "To ignore a high-fanout synchronous control path",
+            "No functional timing relationship exists for that path, with a justified architectural reason",
+            "Whenever STA reports negative slack",
+            "Whenever two signals have different names"
+          ],
+          "answer": 1,
+          "explanation": "Exceptions must represent actual design intent; using them to hide a violation invalidates analysis."
+        },
+        {
+          "question": "Why can a multicycle setup exception need a matching hold adjustment?",
+          "options": [
+            "Changing setup edge separation can otherwise impose unintended hold relationship",
+            "Hold checks are disabled by any setup exception",
+            "It changes clock frequency",
+            "It prevents CDC analysis"
+          ],
+          "answer": 0,
+          "explanation": "The setup multicycle changes the capture edge; corresponding hold semantics must reflect the intended launch/capture relationship."
+        },
+        {
+          "question": "A timing summary is green but many endpoints are unconstrained. What conclusion is valid?",
+          "options": [
+            "All paths meet timing by default",
+            "Unconstrained paths are automatically false",
+            "Only hold checks need rerun",
+            "Signoff is incomplete until those endpoints are constrained or justified"
+          ],
+          "answer": 3,
+          "explanation": "STA cannot establish required timing on endpoints without appropriate constraints."
+        },
+        {
+          "question": "What is the effect of interconnect parasitics on timing?",
+          "options": [
+            "They eliminate clock uncertainty",
+            "They affect only hold, never setup",
+            "Wire resistance/capacitance add delay and can degrade slew",
+            "They change RTL boolean function"
+          ],
+          "answer": 2,
+          "explanation": "Routed wire delay and loading contribute to both max/min path timing and transition quality."
+        },
+        {
+          "question": "Why can high fanout cause a critical path?",
+          "options": [
+            "It removes setup constraints",
+            "Driver load and routing/buffering add delay and congestion",
+            "It makes all destinations share one register",
+            "It reduces clock period automatically"
+          ],
+          "answer": 1,
+          "explanation": "Large fanout burdens drivers and physical routing; buffering/replication can help with area/power tradeoffs."
+        },
+        {
+          "question": "What is a common setup-repair side effect of aggressive cell upsizing?",
+          "options": [
+            "More power/area and potentially worsened hold or congestion",
+            "Guaranteed hold improvement",
+            "Reduced input toggle rate",
+            "No physical impact after synthesis"
+          ],
+          "answer": 0,
+          "explanation": "Stronger cells can raise power and loading and may affect placement, other paths, and min-delay closure."
+        },
+        {
+          "question": "What does hold repair typically add?",
+          "options": [
+            "A new functional pipeline stage by default",
+            "Clock period reduction",
+            "A false-path exception",
+            "Minimum delay such as buffers on too-fast paths"
+          ],
+          "answer": 3,
+          "explanation": "Delay cells/buffers increase minimum path delay to satisfy hold, possibly consuming setup margin."
+        },
+        {
+          "question": "A path is critical due primarily to routing detour in a congested region. What is the first category of fix to evaluate?",
+          "options": [
+            "Add an unrelated pipeline register",
+            "Set a multicycle exception",
+            "Placement/congestion and locality, not only Boolean depth",
+            "Change the reset polarity"
+          ],
+          "answer": 2,
+          "explanation": "The dominant delay is physical interconnect; locality and congestion changes target the actual bottleneck."
+        },
+        {
+          "question": "What can pipelining a critical combinational path change?",
+          "options": [
+            "The source clock frequency automatically",
+            "Architectural latency and protocol/verification behavior",
+            "Only gate count, never observable behavior",
+            "Clock uncertainty only"
+          ],
+          "answer": 1,
+          "explanation": "A pipeline register adds cycles and may require interface, ordering, and testbench updates."
+        },
+        {
+          "question": "Why must timing be checked across multiple corners?",
+          "options": [
+            "Process, voltage, temperature, and variation alter cell and interconnect delays",
+            "Only one corner has a clock",
+            "All corners have identical setup time",
+            "STA randomly chooses corners"
+          ],
+          "answer": 0,
+          "explanation": "Different PVT corners can be worst for max delay, min delay, and power; closure is multi-corner."
+        },
+        {
+          "question": "What does clock uncertainty model?",
+          "options": [
+            "Exact data path delay",
+            "The number of reset synchronizer stages",
+            "Logic equivalence",
+            "Margin for jitter, variation, and other clock-timing uncertainty per methodology"
+          ],
+          "answer": 3,
+          "explanation": "Uncertainty reduces available timing budget to account for nonideal clock behavior and variation."
+        },
+        {
+          "question": "Why inspect clock interaction reports?",
+          "options": [
+            "They report only fanout",
+            "They determine cache hit rate",
+            "They show relationships/analysis status between clock domains and may reveal missing or invalid assumptions",
+            "They replace all path reports"
+          ],
+          "answer": 2,
+          "explanation": "Clock interaction analysis surfaces asynchronous, exclusive, or unconstrained clock relationships that need explicit handling."
+        },
+        {
+          "question": "Why can a high-fanout net replication improve timing but harm power?",
+          "options": [
+            "It lowers clock frequency",
+            "Duplicating drivers reduces load/distance but adds cells and switching capacitance",
+            "Replication removes the signal",
+            "It eliminates all glitches by definition"
+          ],
+          "answer": 1,
+          "explanation": "Physical replication trades local drive and wire length against additional area and dynamic/leakage power."
+        },
+        {
+          "question": "What should be rerun after a timing-driven RTL or constraint change?",
+          "options": [
+            "Relevant STA and equivalence/functional verification for the delivered configuration",
+            "Only code formatting",
+            "No signoff because intent is unchanged",
+            "Only simulation waveform viewing"
+          ],
+          "answer": 0,
+          "explanation": "Design or exception changes can affect behavior and timing; regenerate correlated evidence on the final netlist."
+        },
+        {
+          "question": "What is the danger of broad false-pathing an entire clock domain?",
+          "options": [
+            "It makes the design slower",
+            "It changes asynchronous input voltage",
+            "It creates additional hold buffers automatically",
+            "Legitimate synchronous or constrained crossings can disappear from analysis"
+          ],
+          "answer": 3,
+          "explanation": "A broad exception can hide paths that should be timed or structurally analyzed."
+        },
+        {
+          "question": "Which delay matters for setup closure?",
+          "options": [
+            "Average delay across all paths",
+            "Clock-to-Q at one unrelated endpoint",
+            "Maximum data path delay at the applicable setup corner",
+            "Minimum data delay only"
+          ],
+          "answer": 2,
+          "explanation": "Setup is a max-delay requirement; min-delay analysis addresses hold separately."
+        },
+        {
+          "question": "A path meets timing in synthesis but fails after route. Why is this plausible?",
+          "options": [
+            "A routed path has no capacitance",
+            "Routed wire parasitics, congestion, and clock-tree effects are absent or estimated earlier",
+            "Routing changes Boolean logic necessarily",
+            "Synthesis does not use clocks"
+          ],
+          "answer": 1,
+          "explanation": "Post-route implementation introduces actual interconnect and clock effects that alter delay."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-09",
+      "title": "Parameterized Reusable IP and Contracts",
+      "description": "Create reusable configurable RTL with mathematically safe parameterization, explicit interfaces, and verifiable integration contracts.",
+      "content": "Reusable IP is defined by a contract, not by parameter count. Document legal parameter ranges, reset behavior, clocking, protocol rules, latency, throughput, error handling, and unsupported combinations. Parameters that alter widths, depths, or generate topology need elaboration-time checks and boundary tests. `$clog2(1)` is zero, so expressions such as `[ADDR_W-1:0]` or `[ $clog2(DEPTH)-1:0 ]` can become illegal or silently create surprising widths. Use explicit minimum widths and handle depth-one cases deliberately. Avoid unsized literals and implicit signedness in address arithmetic; size constants to operands and define overflow behavior.\n\nA parameterized FIFO, for example, must define whether DEPTH must be a power of two, pointer width, full detection, simultaneous push/pop semantics, and behavior at DEPTH=1. A memory array indexed by a pointer is not enough: prove pointers remain in range and that occupancy is between zero and DEPTH. `DEPTH` and `WIDTH` should be checked positive, while unsupported combinations should fail elaboration clearly rather than produce obscure downstream errors. Width conversions between external interfaces and internal arithmetic should be explicit and lint-clean.\n\nInterfaces and modports can encode directional intent, but tool portability and synthesis support must be considered. A transaction-level interface should describe handshake and payload stability; a module’s contract should state which side drives ready/valid and whether combinational paths are allowed. Reset is part of the contract: async assertion/sync release, reset values, and in-flight transaction handling must be known. Error outputs need defined behavior, not X as a placeholder. Parameter defaults should support common use without becoming undocumented assumptions.\n\nVerification uses a configuration matrix: minimum and maximum supported widths/depths, non-power-of-two values if allowed, feature toggles, and corner combinations. Elaboration tests catch illegal dimensions; simulation/formal tests check semantic invariants. Lint and synthesis validate multiple configurations, because generate branches may otherwise remain uncompiled. Equivalence should compare the intended configurations, not just defaults. Versioning records interface compatibility and parameter changes; integrations should pin a known IP revision and machine-readable configuration. Reuse becomes reliable when assumptions and guarantees travel with the block and are executable in assertions and tests.",
+      "example": "module param_fifo #(parameter int W=8, DEPTH=4, localparam int PW=(DEPTH<=1)?1:$clog2(DEPTH))\n(input logic clk,rst_n,input logic push,pop,input logic [W-1:0] din,output logic [W-1:0] dout,output logic full,empty);\n initial begin if(W<1 || DEPTH<1) $fatal(1,\"W and DEPTH must be positive\"); end\n logic [W-1:0] mem[DEPTH]; int unsigned count; int unsigned wr,rd;\n assign empty=(count==0); assign full=(count==DEPTH); assign dout=mem[rd];\n always_ff @(posedge clk or negedge rst_n) begin\n  if(!rst_n) begin count<=0; wr<=0; rd<=0; end\n  else begin\n   if(push&&!full) begin mem[wr]<=din; wr<=(wr==DEPTH-1)?0:wr+1; end\n   if(pop&&!empty) rd<=(rd==DEPTH-1)?0:rd+1;\n   case ({push&&!full,pop&&!empty}) 2'b10:count<=count+1; 2'b01:count<=count-1; default:count<=count; endcase\n  end\n end\nendmodule",
+      "keyPoints": [
+        "Document a legal parameter domain and reject unsupported values at elaboration.",
+        "Guard zero-width `$clog2` and explicitly handle depth-one/non-power-of-two configurations.",
+        "Make signedness, sizing, overflow, reset, handshake, latency, and error behavior part of the IP contract.",
+        "Validate configuration corners through elaboration, lint, simulation/formal, synthesis, and revision-controlled integration."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify parameterized reusable ip and contracts behavior against the stated invariants.",
+        "testbench": "module tb_param_fifo;\n logic clk=0,rst_n=0,push=0,pop=0,full,empty; logic [7:0] din,dout; byte q[$]; byte v;\n always #5 clk=~clk;\n param_fifo #(.W(8),.DEPTH(3)) dut(clk,rst_n,push,pop,din,dout,full,empty);\n initial begin\n  repeat(2) @(posedge clk); #1 rst_n=1;\n  for(int n=0;n<3;n++) begin @(negedge clk); push=1; din=n+10; if(!full) q.push_back(din); @(posedge clk); #1; end\n  if(!full) $fatal(1,\"expected full at depth three\");\n  for(int n=0;n<3;n++) begin @(negedge clk); push=0; pop=1; v=q.pop_front(); if(empty||dout!==v) $fatal(1,\"FIFO order/data mismatch\"); @(posedge clk); #1; end\n  if(!empty) $fatal(1,\"expected empty\");\n  $display(\"PASS: non-power-of-two parameter configuration\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "What is the result of `$clog2(1)` in SystemVerilog?",
+          "options": [
+            "2",
+            "0",
+            "1",
+            "Undefined in every tool"
+          ],
+          "answer": 1,
+          "explanation": "The mathematical ceiling of log2(1) is zero; directly using it as a vector width can create an invalid or tool-dependent range."
+        },
+        {
+          "question": "How should a pointer width be defined for a depth-one FIFO?",
+          "options": [
+            "Use an explicit minimum width of one and special-case wrap/full logic",
+            "Use a zero-bit pointer",
+            "Use `$clog2(DEPTH)+2` without review",
+            "Make the data width equal to DEPTH"
+          ],
+          "answer": 0,
+          "explanation": "A zero-width pointer is not a useful portable vector; depth one requires explicit handling."
+        },
+        {
+          "question": "Which statement must be part of a reusable FIFO contract?",
+          "options": [
+            "The author’s preferred editor",
+            "Only the default data value",
+            "The synthesis tool’s theme",
+            "Whether DEPTH must be power of two and how simultaneous push/pop behaves"
+          ],
+          "answer": 3,
+          "explanation": "Parameter legality and corner behavior affect architecture and integration, so they must be explicit."
+        },
+        {
+          "question": "Why can unsized literals be dangerous in parameterized arithmetic?",
+          "options": [
+            "They force clock gating",
+            "They automatically prevent overflow",
+            "Their default sizing/signedness can cause unintended extension or truncation",
+            "They are always 1-bit unsigned"
+          ],
+          "answer": 2,
+          "explanation": "Implicit integer sizing can alter comparisons and arithmetic; explicit widths/signs make intent portable."
+        },
+        {
+          "question": "What assertion captures FIFO occupancy range?",
+          "options": [
+            "pop |-> full",
+            "0 <= count && count <= DEPTH",
+            "count == DEPTH always",
+            "push |-> count unchanged"
+          ],
+          "answer": 1,
+          "explanation": "Bounded occupancy is a fundamental invariant independent of traffic sequence."
+        },
+        {
+          "question": "Why test a non-power-of-two FIFO depth?",
+          "options": [
+            "Pointer wrap and address range logic may fail when natural binary overflow does not equal DEPTH",
+            "It changes payload endian order",
+            "It disables asynchronous reset",
+            "It guarantees empty is never true"
+          ],
+          "answer": 0,
+          "explanation": "For depth three, a two-bit pointer naturally reaches index three, which is invalid unless explicitly wrapped."
+        },
+        {
+          "question": "How should unsupported parameter values fail?",
+          "options": [
+            "Silently truncate dimensions",
+            "Drive all outputs X forever",
+            "Wait for a runtime request to fail",
+            "With a clear elaboration or initialization-time diagnostic"
+          ],
+          "answer": 3,
+          "explanation": "Early explicit validation is easier to diagnose and avoids ambiguous generated hardware."
+        },
+        {
+          "question": "Which configuration matrix is most useful?",
+          "options": [
+            "Every possible integer to 32-bit maximum",
+            "One random configuration with no record",
+            "Boundary/legal combinations, feature toggles, and width/depth extremes",
+            "Only the default parameters"
+          ],
+          "answer": 2,
+          "explanation": "Targeted boundary and interaction cases exercise generate branches and arithmetic risks efficiently."
+        },
+        {
+          "question": "What is a risk in `logic [W-1:0]` if W is zero?",
+          "options": [
+            "It disables the module clock",
+            "An invalid or unexpectedly ranged packed array declaration",
+            "It automatically means an empty bus portably",
+            "It creates a valid parity bit"
+          ],
+          "answer": 1,
+          "explanation": "Zero-width vectors are not a safe portable interface; enforce W>=1 or define a deliberate alternative."
+        },
+        {
+          "question": "Why should address arithmetic declare signedness?",
+          "options": [
+            "To avoid sign extension or comparison errors for high-bit addresses",
+            "Signed values never overflow",
+            "Unsigned addresses cannot be parameterized",
+            "It improves CDC MTBF"
+          ],
+          "answer": 0,
+          "explanation": "Mixed signed and unsigned expressions can produce incorrect range checks or truncation at parameterized widths."
+        },
+        {
+          "question": "What should a module contract say about reset and in-flight items?",
+          "options": [
+            "Only the reset pin name",
+            "That reset is irrelevant to protocol",
+            "That all parameterizations use the same reset value without checking",
+            "Reset polarity/timing and whether outstanding transactions are flushed or preserved"
+          ],
+          "answer": 3,
+          "explanation": "Integrators and scoreboards need to know how reset affects visible transactions and state."
+        },
+        {
+          "question": "Why compile multiple parameter values in lint/synthesis?",
+          "options": [
+            "Lint checks only comments",
+            "It guarantees functional correctness automatically",
+            "Generate branches and width-dependent constructs may be untested at defaults",
+            "Synthesis changes parameter values at runtime"
+          ],
+          "answer": 2,
+          "explanation": "Elaboration is configuration-specific; alternate branches may contain errors or infer unintended hardware."
+        },
+        {
+          "question": "A parameter controls an address width. What is a critical range check?",
+          "options": [
+            "Ensure width is less than one",
+            "Ensure width covers every legal address without overflow/truncation",
+            "Ensure width is always equal to data width",
+            "Ensure width is even"
+          ],
+          "answer": 1,
+          "explanation": "Address capacity depends on legal range; too-narrow arithmetic aliases or truncates addresses."
+        },
+        {
+          "question": "What does an interface modport provide?",
+          "options": [
+            "Directional views of interface signals for different participants",
+            "Automatic protocol correctness",
+            "A clock-domain synchronizer",
+            "A memory implementation"
+          ],
+          "answer": 0,
+          "explanation": "Modports encode which interface signals a role may drive or observe."
+        },
+        {
+          "question": "Why might a reusable block avoid unsupported interface syntax?",
+          "options": [
+            "Interfaces cannot express any signals",
+            "It prevents all parameterization",
+            "It improves cache hit rate",
+            "Synthesis/simulator portability varies across toolchains"
+          ],
+          "answer": 3,
+          "explanation": "Language-feature support differences can block integrations; supported subset should be verified in target tools."
+        },
+        {
+          "question": "What is an appropriate FIFO full behavior on simultaneous accepted pop and push?",
+          "options": [
+            "Always overflow count to DEPTH+1",
+            "Clear all entries",
+            "Permit replacement if the contract allows capacity freed on that edge",
+            "Always reject push because old count is full"
+          ],
+          "answer": 2,
+          "explanation": "With a valid simultaneous dequeue, storage is freed at the edge; logic can accept replacement if correctly implemented."
+        },
+        {
+          "question": "Why pin an IP revision and configuration in SoC integration?",
+          "options": [
+            "Because parameters cannot change between builds",
+            "To make the exact interface/parameter contract reproducible",
+            "To avoid running simulation",
+            "To prevent any future updates"
+          ],
+          "answer": 1,
+          "explanation": "Version and config capture identify the validated implementation used by integration."
+        },
+        {
+          "question": "Which is stronger evidence than checking only default simulation?",
+          "options": [
+            "Elaboration plus functional checks over supported parameter boundaries and feature combinations",
+            "A successful file open",
+            "A single passing test with W=8",
+            "A green code formatter"
+          ],
+          "answer": 0,
+          "explanation": "Boundary/configuration tests expose elaboration and behavioral failures that defaults miss."
+        },
+        {
+          "question": "What should happen to unstrobed byte lanes in a parameterized register bank?",
+          "options": [
+            "Always clear to zero",
+            "Copy from the next word",
+            "Become signed",
+            "Remain unchanged unless the contract specifies another behavior"
+          ],
+          "answer": 3,
+          "explanation": "Byte-enable semantics must be explicit and preserved regardless of configured data width."
+        },
+        {
+          "question": "Why include unsupported combinations in parameter documentation?",
+          "options": [
+            "To replace assertion coverage",
+            "To make the default unknown",
+            "Integrators can reject them early rather than relying on accidental tool behavior",
+            "To encourage invalid configurations"
+          ],
+          "answer": 2,
+          "explanation": "Explicit exclusions are part of a reliable reusable contract and prevent accidental dependence on undefined configurations."
+        }
+      ]
+    },
+    {
+      "level": "Expert",
+      "id": "expert-10",
+      "title": "SoC Integration, Debug, and Signoff",
+      "description": "Integrate heterogeneous IP with traceable contracts, system-level observability, failure triage, and release evidence.",
+      "content": "SoC integration is the discipline of preserving component contracts across hierarchy. Address maps need aligned regions, non-overlapping decode, access permissions, security attribution, and documented behavior for unmapped addresses. Interconnect topology determines arbitration, ordering, outstanding capacity, and response routing. Clock/reset and power-domain boundaries must agree with the blocks’ assumptions; a module verified in isolation can fail when reset sequencing, bus pressure, or address aliases differ at top level. Pin down interface widths, endian conventions, ID handling, burst support, error responses, and performance limits in machine-checkable integration data.\n\nIntegration verification should include connectivity and structural checks, protocol assertions, address-map tests, security and privilege tests, and end-to-end software-visible scenarios. A transaction scoreboard spanning initiator to target detects routing, alias, and response-ID errors that block-level tests miss. Stress independent channel stalls, simultaneous masters, backpressure, reset during traffic, low-power transitions, and error propagation. Constrained random tests should be complemented by directed tests for rare but high-consequence cases. Assertions and covergroups should map to system requirements, with every waiver and unreachable condition owned and reviewed.\n\nDebug depends on observability designed in advance. Useful evidence includes transaction IDs, timestamps/cycle counts, bus performance counters, reset cause, timeout/error status, trace buffers, and synchronized event logs. Instrumentation must avoid perturbing timing or leaking protected data. A failure is localized by finding the first divergence across layers: software intent, bus request, interconnect route, target acceptance, internal state transition, and response. Preserve seeds, build hashes, parameter configurations, firmware, constraints, and waveforms. Avoid masking a failure by adding retries or weakening checks before the root cause is understood.\n\nSignoff is a cross-domain evidence package: RTL and gate-level functional verification, CDC/RDC, formal proofs, lint, synthesis/STA across modes and corners, DFT, low-power checks, security review, physical verification, and software compatibility. Results must correspond to the exact source revision, constraints, UPF, libraries, and implementation database. Change impact analysis determines which evidence must be refreshed after a modification. Release gates should list open waivers, known limitations, performance margins, safety mechanisms, and rollback plan. “All tests passed” is not signoff unless the tested configuration is the shipped one and requirements have traceable closure.",
+      "example": "module decode2 #(parameter int AW=16)(input logic [AW-1:0] addr,input logic req,output logic hit_a,hit_b,miss);\n always_comb begin\n  hit_a=req && (addr[AW-1:12]==0);       // 0x0000-0x0fff\n  hit_b=req && (addr[AW-1:12]==1);       // 0x1000-0x1fff\n  miss=req && !(hit_a||hit_b);\n end\nendmodule",
+      "keyPoints": [
+        "Specify address, security, ordering, clock/reset/power, throughput, and error-response contracts end to end.",
+        "Verify the integrated route from initiator acceptance through target response, including aliases and contention.",
+        "Build debug observability and reproducible artifacts into the integration plan.",
+        "Tie signoff evidence and waivers to the exact delivered RTL, constraints, libraries, power intent, and implementation."
+      ],
+      "test": {
+        "objective": "Demonstrate and verify soc integration, debug, and signoff behavior against the stated invariants.",
+        "testbench": "module tb_decode2;\n logic [15:0] addr; logic req=1,ha,hb,miss;\n decode2 dut(addr,req,ha,hb,miss);\n task automatic check(input logic [15:0] a,input bit ea,eb,em);\n  addr=a; #1;\n  if({ha,hb,miss}!=={ea,eb,em}) $fatal(1,\"decode mismatch at %h\",a);\n endtask\n initial begin\n  check(16'h0000,1,0,0); check(16'h0fff,1,0,0);\n  check(16'h1000,0,1,0); check(16'h1fff,0,1,0);\n  check(16'h2000,0,0,1);\n  req=0; addr=16'h0001; #1; if({ha,hb,miss}!==0) $fatal(1,\"inactive request hit\");\n  $display(\"PASS: boundaries, unmapped decode, and request gating\"); $finish;\n end\nendmodule"
+      },
+      "questions": [
+        {
+          "question": "Why are address-map boundaries a high-value SoC test target?",
+          "options": [
+            "They guarantee a CDC violation",
+            "They validate only software compilation",
+            "Decode off-by-one errors can alias adjacent targets or produce incorrect unmapped responses",
+            "They change AXI ready semantics"
+          ],
+          "answer": 2,
+          "explanation": "Testing start/end boundaries and neighboring unmapped addresses exposes range and alignment mistakes."
+        },
+        {
+          "question": "What is a transaction ID primarily used for in an interconnect?",
+          "options": [
+            "Replace access permissions",
+            "Route and associate responses with outstanding requests under the protocol rules",
+            "Select clock frequency",
+            "Encode byte order automatically"
+          ],
+          "answer": 1,
+          "explanation": "IDs preserve request/response association, especially when multiple transactions are outstanding."
+        },
+        {
+          "question": "What is a system-level test that block tests often miss?",
+          "options": [
+            "Two initiators contending for one target with independent stalls and response routing",
+            "A register reset test in isolation only",
+            "A combinational adder truth table",
+            "A single cache hit with no bus traffic"
+          ],
+          "answer": 0,
+          "explanation": "Integration contention exercises arbitration, buffering, fairness, and cross-block response routing."
+        },
+        {
+          "question": "What security property should an address decode enforce?",
+          "options": [
+            "All addresses are publicly accessible",
+            "Decode depends only on low byte bits",
+            "Responses always return OKAY",
+            "Target access follows privilege/security attribution and mapped permissions"
+          ],
+          "answer": 3,
+          "explanation": "Correct mapping alone is insufficient if unauthorized initiators can reach protected targets."
+        },
+        {
+          "question": "Why define unmapped-address behavior explicitly?",
+          "options": [
+            "It chooses endianness",
+            "It prevents setup violations",
+            "Masters need deterministic error/timeout semantics and software-visible diagnostics",
+            "Unmapped requests cannot occur"
+          ],
+          "answer": 2,
+          "explanation": "Undefined handling can hang systems or mask decode defects; a contract should specify response and side effects."
+        },
+        {
+          "question": "What is the best first debug strategy for an end-to-end mismatch?",
+          "options": [
+            "Increase retry count until it passes",
+            "Find the earliest layer where observed behavior diverges from expected intent",
+            "Change every block simultaneously",
+            "Disable scoreboards"
+          ],
+          "answer": 1,
+          "explanation": "The first divergence narrows causal ownership and avoids masking downstream symptoms."
+        },
+        {
+          "question": "Which artifacts enable reproducible SoC failure triage?",
+          "options": [
+            "Seed, source/build hash, parameters, firmware, constraints, and trace/waveform",
+            "Only a screenshot",
+            "The test name alone",
+            "A list of passed tests"
+          ],
+          "answer": 0,
+          "explanation": "Failures depend on build/configuration and randomized state; preserve enough context to reproduce the exact run."
+        },
+        {
+          "question": "Why can a retry conceal a root cause?",
+          "options": [
+            "Retries always improve determinism",
+            "It proves address decode correct",
+            "It eliminates response ordering",
+            "It may hide a lost/duplicated transaction or timeout without fixing the failure mechanism"
+          ],
+          "answer": 3,
+          "explanation": "Retry logic can make symptoms intermittent while leaving correctness or safety defects unresolved."
+        },
+        {
+          "question": "What does an end-to-end scoreboard add beyond a local protocol checker?",
+          "options": [
+            "Replaces all reset checks",
+            "Guarantees timing closure",
+            "Checks routing and functional response correspondence across initiator-to-target path",
+            "Checks only signal widths"
+          ],
+          "answer": 2,
+          "explanation": "Local protocol compliance does not ensure requests reached the intended target or received correct results."
+        },
+        {
+          "question": "What is change-impact analysis for signoff?",
+          "options": [
+            "Assume all prior signoff remains valid",
+            "Identify which evidence must be rerun based on modified logic, constraints, or implementation",
+            "Delete stale reports without rerunning",
+            "Re-run only the fastest simulation"
+          ],
+          "answer": 1,
+          "explanation": "A change can invalidate different analyses depending on its effect; explicit impact assessment keeps evidence current."
+        },
+        {
+          "question": "Which item must match the released configuration for signoff?",
+          "options": [
+            "Source revision, constraints, UPF, libraries, and implementation database",
+            "Only the project name",
+            "A developer’s local waveform color",
+            "The default parameter set regardless of shipped values"
+          ],
+          "answer": 0,
+          "explanation": "Timing and implementation proofs apply to the exact design and environment that were analyzed."
+        },
+        {
+          "question": "What observability signal is especially useful for tracing a bus timeout?",
+          "options": [
+            "Only an uncorrelated activity LED",
+            "A random status bit",
+            "An unrelated clock enable",
+            "Request/response IDs and cycle timestamps or counters"
+          ],
+          "answer": 3,
+          "explanation": "IDs and timing correlate the missing request/response across boundaries and quantify timeout behavior."
+        },
+        {
+          "question": "What risk does debug instrumentation pose?",
+          "options": [
+            "It guarantees formal convergence",
+            "It removes reset sequencing",
+            "It can perturb timing, area, power, or expose sensitive data",
+            "It always fixes bus deadlocks"
+          ],
+          "answer": 2,
+          "explanation": "Instrumentation must be designed and reviewed so it does not invalidate implementation or security requirements."
+        },
+        {
+          "question": "Why test reset asserted during active traffic?",
+          "options": [
+            "It guarantees all targets idle",
+            "It exercises abort/flush semantics and prevents stale responses after restart",
+            "It validates only the reset pin polarity",
+            "The bus protocol is suspended forever"
+          ],
+          "answer": 1,
+          "explanation": "System reset can intersect outstanding transactions, so the contract must define cleanup and recovery behavior."
+        },
+        {
+          "question": "What should coverage closure demonstrate?",
+          "options": [
+            "Specified scenarios were exercised and checked or justified with approved exclusions",
+            "Every possible input vector was simulated",
+            "All cover bins were forced reachable",
+            "No assertions ever fired"
+          ],
+          "answer": 0,
+          "explanation": "Coverage must map to requirements and verified outcomes; exclusions need reasoned ownership."
+        },
+        {
+          "question": "How should a security failure in a trace be triaged?",
+          "options": [
+            "Assume the target is always responsible",
+            "Disable privilege checking for replay",
+            "Treat the error as a normal timeout",
+            "Check initiator attribution, interconnect policy, target checks, and response behavior"
+          ],
+          "answer": 3,
+          "explanation": "Access control may be enforced at multiple boundaries; trace the attribute and authorization decision end to end."
+        },
+        {
+          "question": "Why include performance counters in an SoC?",
+          "options": [
+            "They automatically tune clock speed",
+            "They prove deadlock absence",
+            "They help separate arbitration, queueing, target latency, and bandwidth bottlenecks",
+            "They replace functional checks"
+          ],
+          "answer": 2,
+          "explanation": "Measured occupancy and latency at boundaries localize performance constraints rather than relying on aggregate throughput."
+        },
+        {
+          "question": "What does a signoff waiver need?",
+          "options": [
+            "A promise that the issue will not recur",
+            "Precise scope, evidence/rationale, owner, and review/expiry policy",
+            "A broad wildcard and no owner",
+            "A matching test name only"
+          ],
+          "answer": 1,
+          "explanation": "Traceable waivers prevent unjustified exceptions from silently hiding future defects."
+        },
+        {
+          "question": "Why does RTL passing simulation not establish physical signoff?",
+          "options": [
+            "It does not prove routed timing, DFT, power intent, physical rules, or final-netlist behavior",
+            "Simulation cannot run RTL",
+            "All physical effects are in the language semantics",
+            "RTL simulation proves no bugs by construction"
+          ],
+          "answer": 0,
+          "explanation": "Physical implementation and nonfunctional checks require their own analysis on final artifacts."
+        },
+        {
+          "question": "When is a release gate meaningfully complete?",
+          "options": [
+            "When the test count is large",
+            "When only block tests pass",
+            "When no warnings are printed",
+            "When required evidence maps to requirements and the exact shipped configuration, with open risks documented"
+          ],
+          "answer": 3,
+          "explanation": "Signoff depends on traceable closure, configuration identity, and disposition of known limitations and waivers."
+        }
+      ]
+    }
+  ]
+}

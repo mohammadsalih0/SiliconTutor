@@ -1,0 +1,9 @@
+/.gradle
+/captures/
+/local.properties
+.cxx/
+
+# Local signing configuration and credentials
+key.properties
+**/*.keystore
+**/*.jks

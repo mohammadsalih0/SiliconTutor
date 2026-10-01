@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=SiliconTutor: Interactive SystemVerilog & Hardware Design
+Comment=Offline SystemVerilog, digital logic, and RTL learning environment
+Exec=silicontutor
+Icon=silicontutor
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Education;Development;Electronics;Science;
+Keywords=SystemVerilog;RTL;FPGA;Hardware;Verilog;
